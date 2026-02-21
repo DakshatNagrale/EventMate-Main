@@ -64,3 +64,69 @@ export const createEventController = asyncHandler(async (req, res) => {
     data: event
   });
 });
+
+// PUBLISH EVENT
+export const publishEvent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const event = await Event.findById(id);
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found"
+      });
+    }
+
+    if (event.status === "Published") {
+      return res.status(400).json({
+        success: false,
+        message: "Event already published"
+      });
+    }
+
+    event.status = "Published";
+    event.updatedBy = req.user._id;
+
+    await event.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Event published successfully",
+      data: event
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+//getPublishedEvents
+
+export const getPublishedEvents = async (req, res, next) => {
+  try {
+    
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const skip = (page - 1) * limit;
+    
+    const events = await Event.find({ status: "Published" }).select("-__v -createdBy -updatedBy").skip(skip)
+      .limit(limit);
+
+
+    const total = await Event.countDocuments({ status: "Published" });
+    
+    res.status(200).json({
+      success: true,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      data: events
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
