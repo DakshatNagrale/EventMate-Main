@@ -232,3 +232,60 @@ export const completeEvent = async (req, res, next) => {
     next(error);
   }
 };
+
+//updateEvent
+export const updateEvent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const event = await Event.findById(id);
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found"
+      });
+    }
+
+    if (
+      req.user.role !== "ADMIN" &&
+      event.createdBy.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to update this event"
+      });
+    }
+
+    if (event.status !== "Draft") {
+      return res.status(400).json({
+        success: false,
+        message: "Only draft events can be updated"
+      });
+    }
+
+
+    delete req.body.organizer;
+    delete req.body.createdBy;
+    delete req.body.updatedBy;
+    delete req.body.status;
+    delete req.body._id;
+    delete req.body.__v;
+
+
+    Object.assign(event, req.body);
+
+    event.updatedBy = req.user._id;
+
+    await event.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Event updated successfully",
+      data: event
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
