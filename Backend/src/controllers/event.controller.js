@@ -130,3 +130,57 @@ export const getPublishedEvents = async (req, res, next) => {
     next(error);
   }
 };
+
+//cancel event
+export const cancelEvent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const event = await Event.findById(id);
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found"
+      });
+    }
+
+    if (event.status === "Completed") {
+      return res.status(400).json({
+        success: false,
+        message: "Completed event cannot be cancelled"
+      });
+    }
+
+    if (event.status === "Cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Event already cancelled"
+      });
+    }
+
+    if (
+      req.user.role !== "MAIN_ADMIN" &&
+      event.createdBy.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to cancel this event"
+      });
+    }
+
+    event.status = "Cancelled";
+    event.updatedBy = req.user._id;
+
+    await event.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Event cancelled successfully",
+      data: event
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
