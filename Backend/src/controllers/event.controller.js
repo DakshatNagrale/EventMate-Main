@@ -184,3 +184,51 @@ export const cancelEvent = async (req, res, next) => {
     next(error);
   }
 };
+
+//completeEvent
+export const completeEvent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const event = await Event.findById(id);
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found"
+      });
+    }
+
+
+    if (event.status !== "Published") {
+      return res.status(400).json({
+        success: false,
+        message: "Only published events can be marked as completed"
+      });
+    }
+
+    if (
+      req.user.role !== "ADMIN" &&
+      event.createdBy.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to complete this event"
+      });
+    }
+
+    event.status = "Completed";
+    event.updatedBy = req.user._id;
+
+    await event.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Event marked as completed successfully",
+      data: event
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
