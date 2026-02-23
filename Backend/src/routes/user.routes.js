@@ -1,7 +1,12 @@
 import express from "express";
 import multer from "multer";
 import authMiddleware from "../middleware/auth.middleware.js";
-import { getProfileController, updateProfileController, uploadAvatarController, forgotPasswordController, resetPasswordController } from "../controllers/user.controller.js";
+import roleMiddleware from "../middleware/role.middleware.js";
+
+import { getProfileController, updateProfileController, uploadAvatarController, forgotPasswordController, resetPasswordController,
+  createOrganizer,
+  createCoordinator
+} from "../controllers/user.controller.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -13,5 +18,18 @@ router.put("/profile", updateProfileController);
 router.post("/avatar", upload.single("avatar"), uploadAvatarController);
 router.post("/forgot-password", forgotPasswordController);
 router.post("/reset-password", resetPasswordController);
+
+router.post(
+  "/create-organizer",
+  authMiddleware,
+  roleMiddleware("MAIN_ADMIN"),
+  createOrganizer
+);
+
+router.post(
+  "/create-coordinator",
+  roleMiddleware("MAIN_ADMIN", "ORGANIZER"),
+  createCoordinator
+);
 
 export default router;

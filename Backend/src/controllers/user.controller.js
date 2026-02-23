@@ -57,3 +57,98 @@ export const resetPasswordController = asyncHandler(async (req, res) => {
 
   res.json({ success: true, message: "Password reset successful" });
 });
+
+// Admin creates Organizer
+export const createOrganizer = async (req, res, next) => {
+  try {
+    const { fullName, email, password } = req.body;
+
+    if (!fullName || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required"
+      });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered"
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const organizer = await User.create({
+      fullName,
+      email,
+      password: hashedPassword,
+      role: "ORGANIZER",
+      createdBy: req.user._id,
+      emailVerified: true // optional to skip OTP for admin-created users
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Organizer created successfully",
+      data: {
+        _id: organizer._id,
+        fullName: organizer.fullName,
+        email: organizer.email,
+        role: organizer.role
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// MAIN_ADMIN or ORGANIZER creates Student Coordinator
+export const createCoordinator = async (req, res, next) => {
+  try {
+    const { fullName, email, password } = req.body;
+
+    if (!fullName || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required"
+      });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered"
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const coordinator = await User.create({
+      fullName,
+      email,
+      password: hashedPassword,
+      role: "STUDENT_COORDINATOR",
+      createdBy: req.user._id,
+      emailVerified: true 
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Coordinator created successfully",
+      data: {
+        _id: coordinator._id,
+        fullName: coordinator.fullName,
+        email: coordinator.email,
+        role: coordinator.role,
+        createdBy: coordinator.createdBy
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
