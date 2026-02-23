@@ -54,6 +54,11 @@ const SummaryApi = {
   },
 
   /* ================= EVENTS ================= */
+  get_published_events: {
+    url: "/api/events",
+    method: "get",
+  },
+
   create_event: {
     url: "/api/events",
     method: "post",
@@ -77,3 +82,5 @@ const SummaryApi = {
 };
 
 export default SummaryApi;
+
+

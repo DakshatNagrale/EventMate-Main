@@ -1,6 +1,6 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import api from "../lib/api";
+import api from "../utils/Axios";
 import SummaryApi from "../common/SummaryApi";
 
 export default function VerifyEmail() {
@@ -98,10 +98,14 @@ export default function VerifyEmail() {
         </form>
 
         <div className="mt-6 flex items-center justify-between text-sm text-slate-500">
-          <Link to="/signup" className="hover:text-indigo-600">Back to signup</Link>
+          <Link to="/register" className="hover:text-indigo-600">Back to signup</Link>
           <Link to="/login" className="font-semibold text-indigo-600 hover:underline">Go to login</Link>
         </div>
       </div>
     </section>
   );
 }
+
+
+
+

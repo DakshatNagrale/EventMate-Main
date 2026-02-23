@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom"
-import { getStoredUser } from "../../lib/auth"
-import { logoutUser } from "../../lib/logout"
+import { getStoredUser } from "../utils/auth"
+import { logoutUser } from "../utils/logout"
 
 export default function CoordinatorDashboard() {
   const navigate = useNavigate()
@@ -57,3 +57,6 @@ export default function CoordinatorDashboard() {
     </div>
   )
 }
+
+
+

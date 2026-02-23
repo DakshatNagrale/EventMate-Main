@@ -362,7 +362,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                   Login
                 </Link>
                 <Link
-                  to="/signup"
+                  to="/register"
                   className="relative px-5 py-2 rounded-full text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-600 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition"
                 >
                   <span className="relative z-10">Sign Up</span>
@@ -471,7 +471,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                 <Link to="/login" className="block w-full text-center px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
                   Login
                 </Link>
-                <Link to="/signup" className="block w-full text-center px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700">
+                <Link to="/register" className="block w-full text-center px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700">
                   Sign Up
                 </Link>
                 <button
@@ -593,3 +593,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
 };
 
 export default Navbar;
+
+
+
+

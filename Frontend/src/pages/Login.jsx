@@ -1,8 +1,8 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaRegEyeSlash, FaRegEye } from "react-icons/fa6";
-import api from "../lib/api";
-import { storeAuth } from "../lib/auth";
+import api from "../utils/Axios";
+import { storeAuth } from "../utils/auth";
 import SummaryApi from "../common/SummaryApi";
 
 export default function Login() {
@@ -200,7 +200,7 @@ export default function Login() {
 
               <p className="relative z-10 mt-6 text-center text-sm text-slate-600">
                 Do not have an account?
-                <Link to="/signup" className="ml-1 font-semibold text-indigo-600 hover:underline">
+                <Link to="/register" className="ml-1 font-semibold text-indigo-600 hover:underline">
                   Register
                 </Link>
               </p>
@@ -243,3 +243,7 @@ export default function Login() {
     </section>
   );
 }
+
+
+
+

@@ -1,4 +1,4 @@
-﻿import api from "./api";
+import api from "./Axios";
 import SummaryApi from "../common/SummaryApi";
 import { clearAuth } from "./auth";
 
@@ -11,3 +11,5 @@ export const logoutUser = async () => {
     clearAuth();
   }
 };
+
+

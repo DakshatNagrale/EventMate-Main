@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import api from "../lib/api";
+import api from "../utils/Axios";
 import SummaryApi from "../common/SummaryApi";
 
 export default function Signup() {
@@ -333,3 +333,6 @@ export default function Signup() {
     </main>
   );
 }
+
+
+

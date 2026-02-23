@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import api from "../lib/api";
+import api from "../utils/Axios";
 import SummaryApi from "../common/SummaryApi";
-import { storeAuth } from "../lib/auth";
+import { storeAuth } from "../utils/auth";
 
 const yearOptions = ["1st", "2nd", "3rd", "4th"];
 
@@ -289,3 +289,6 @@ export default function Profile() {
     </div>
   );
 }
+
+
+

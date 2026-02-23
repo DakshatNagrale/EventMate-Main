@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { getStoredUser } from "../../lib/auth";
-import { logoutUser } from "../../lib/logout";
-import EventCreator from "../../components/EventCreator";
+import { getStoredUser } from "../utils/auth";
+import { logoutUser } from "../utils/logout";
+import EventCreator from "../components/EventCreator";
 
 export default function OrganizerDashboard() {
   const navigate = useNavigate();
@@ -83,3 +83,6 @@ export default function OrganizerDashboard() {
     </div>
   );
 }
+
+
+

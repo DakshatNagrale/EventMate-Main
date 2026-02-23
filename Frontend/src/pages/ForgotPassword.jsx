@@ -1,6 +1,6 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import api from "../lib/api";
+import api from "../utils/Axios";
 import SummaryApi from "../common/SummaryApi";
 
 export default function ForgotPassword() {
@@ -210,3 +210,6 @@ export default function ForgotPassword() {
     </section>
   );
 }
+
+
+

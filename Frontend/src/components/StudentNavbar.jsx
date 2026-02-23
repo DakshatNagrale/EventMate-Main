@@ -73,7 +73,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
               
               {/* --- UPDATED: Contact Us Link --- */}
               <Link 
-                to="/contact-us" // Ensure this route exists in your Router
+                to="/#contact" // Ensure this route exists in your Router
                 className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-all duration-200 ${isActive('contact-us')}`}
               >
                 Contact us
@@ -183,7 +183,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
             
             {/* --- UPDATED: Mobile Contact Us Link --- */}
             <Link
-              to="/contact-us"
+              to="/#contact"
               className={`w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium ${isActive('contact-us') ? 'bg-purple-50 border-purple-600 text-purple-700' : 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700'}`}
             >
               Contact us
@@ -221,3 +221,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
 };
 
 export default Navbar;
+
+
+
+

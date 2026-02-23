@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import ContactUs from "../components/ContactUs";
-import eventmateLogo from "../assets/eventmate-logo.png";
+import eventmateLogo from "../assets/logo.png";
 import { motion, useReducedMotion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 
 // --- Icons ---
@@ -314,7 +314,7 @@ export default function Landing() {
               {/* Buttons */}
               <motion.div variants={textReveal} className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-5">
                 <Link
-                  to="/signup"
+                  to="/register"
                   className="group relative p-[2px] rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-[spin_4s_linear_infinite] cta-glow"
                 >
                   <div className="relative bg-white dark:bg-[#030712] rounded-full px-8 py-4 group-hover:bg-opacity-0 transition-all duration-300">
@@ -811,3 +811,8 @@ export default function Landing() {
     </div>
   );
 }
+
+
+
+
+

@@ -1,4 +1,4 @@
-﻿const USER_KEY = "user";
+const USER_KEY = "user";
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
 
@@ -40,3 +40,5 @@ export const clearAuth = () => {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 };
+
+

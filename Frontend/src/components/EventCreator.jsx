@@ -1,5 +1,5 @@
 import { useState } from "react";
-import api from "../lib/api";
+import api from "../utils/Axios";
 import SummaryApi from "../common/SummaryApi";
 
 const initialForm = {
@@ -339,3 +339,6 @@ export default function EventCreator({ title = "Create Event", subtitle }) {
     </section>
   );
 }
+
+
+
