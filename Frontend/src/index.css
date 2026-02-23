@@ -1,0 +1,36 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Smooth dark mode transition */
+html {
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+/* Proper dark background */
+.dark {
+  background-color: #0f0f17;
+  color: #e2e8f0;
+}
+
+/* Optional: Better scrollbars in dark mode */
+.dark::-webkit-scrollbar {
+  width: 8px;
+}
+.dark::-webkit-scrollbar-track {
+  background: #1e1e2d;
+}
+.dark::-webkit-scrollbar-thumb {
+  background: #4c1d95;
+  border-radius: 4px;
+}
+.dark::-webkit-scrollbar-thumb:hover {
+  background: #6366f1;
+}
+@keyframes pulse {
+  0%, 100% { transform: translate3d(0,0,0) scale(1); opacity: .65; }
+  50% { transform: translate3d(0,0,0) scale(1.08); opacity: .9; }
+}
+html { scroll-behavior: auto !important; }
+* { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }

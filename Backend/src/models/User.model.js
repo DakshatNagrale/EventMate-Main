@@ -1,0 +1,36 @@
+import mongoose from "mongoose";
+
+const UserSchema = new mongoose.Schema(
+  {
+    fullName: { type: String, required: true, trim: true, minlength: 3, maxlength: 100 },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    password: { type: String, required: true, minlength: 8, select: false },
+
+    role: {
+      type: String,
+      enum: ["MAIN_ADMIN", "ORGANIZER", "STUDENT_COORDINATOR", "STUDENT"],
+      default: "STUDENT",
+      immutable: true
+    },
+
+    mobileNumber: { type: String, match: /^[6-9]\d{9}$/, sparse: true },
+    collegeName: { type: String, trim: true, maxlength: 150 },
+    avatar: { type: String, default: null },
+
+    academicProfile: { branch: String, year: { type: String, enum: ["1st","2nd","3rd","4th"] } },
+    professionalProfile: { department: String, occupation: String },
+
+    emailVerified: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true },
+    refreshToken: { type: String, select: false },
+    otp: { type: String, select: false },
+    otpExpiry: { type: Date, select: false },
+
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    lastLoginAt: Date,
+    passwordChangedAt: Date
+  },
+  { timestamps: true }
+);
+
+export default mongoose.model("User", UserSchema);
