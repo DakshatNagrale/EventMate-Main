@@ -20,6 +20,17 @@ const EventSchema = new mongoose.Schema(
       contactEmail: String,
       contactPhone: String
     },
+studentCoordinators: [
+      {
+        coordinatorId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          default: null
+        },
+        name: String,
+        email: String
+      }
+    ],
 
     venue: {
       mode: {
