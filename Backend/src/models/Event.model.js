@@ -57,6 +57,16 @@ studentCoordinators: [
         default: 0
       }
     },
+    
+    isTeamEvent: {
+  type: Boolean,
+  default: false
+},
+
+maxTeamSize: {
+  type: Number,
+  default: 1
+},
 
     attendance: {
       qrCode: String,
