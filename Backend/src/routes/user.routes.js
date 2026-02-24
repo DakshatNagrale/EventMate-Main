@@ -11,13 +11,13 @@ import { getProfileController, updateProfileController, uploadAvatarController, 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+router.post("/forgot-password", forgotPasswordController);
+router.post("/reset-password", resetPasswordController);
 router.use(authMiddleware);
 
 router.get("/profile", getProfileController);
 router.put("/profile", updateProfileController);
 router.post("/avatar", upload.single("avatar"), uploadAvatarController);
-router.post("/forgot-password", forgotPasswordController);
-router.post("/reset-password", resetPasswordController);
 
 router.post(
   "/create-organizer",

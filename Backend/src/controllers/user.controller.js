@@ -52,7 +52,7 @@ export const resetPasswordController = asyncHandler(async (req, res) => {
 
   user.password = await bcrypt.hash(newPassword, 10);
   user.otp = null;
-  user.otpExpiry = null;newPassword
+  user.otpExpiry = null;
   await user.save();
 
   res.json({ success: true, message: "Password reset successful" });
