@@ -248,7 +248,7 @@ export const updateEvent = async (req, res, next) => {
     }
 
     if (
-      req.user.role !== "ADMIN" &&
+      req.user.role !== "MAIN_ADMIN" &&
       event.createdBy.toString() !== req.user._id.toString()
     ) {
       return res.status(403).json({
@@ -285,6 +285,39 @@ export const updateEvent = async (req, res, next) => {
       data: event
     });
 
+  } catch (error) {
+    next(error);
+  }
+};
+
+//get an published event by id
+export const getEvent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const event = await Event.findById(id);
+    
+    if(!event){
+     return res.status(404).json({
+        success: false,
+        message: "Event not found!"
+      });
+    }
+    
+    if(req.user.role !== "MAIN_ADMIN" &&
+      event.createdBy.toString() !== req.user._id.toString() && event.status !== "Published"){
+       return res.status(403).json({
+          success: false,
+          message: "Not authorized to view this event"
+        })
+      }
+      
+      return res.status(200).json({
+      success: true,
+      message: "Access Granted!",
+      data: event
+    });
+    
   } catch (error) {
     next(error);
   }

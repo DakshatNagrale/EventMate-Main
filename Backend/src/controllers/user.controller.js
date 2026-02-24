@@ -47,7 +47,7 @@ export const resetPasswordController = asyncHandler(async (req, res) => {
   const user = await User.findOne({ email }).select("+otp +otpExpiry");
   if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-  if (user.otp !== otp || user.otpExpiry < Date.now())
+  if (user.otp.toString() !== otp.toString() || user.otpExpiry < Date.now())
     return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
 
   if (!newPassword || newPassword.length < 8)

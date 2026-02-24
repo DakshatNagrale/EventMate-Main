@@ -2,7 +2,7 @@ import express from "express";
 import authMiddleware from "../middleware/auth.middleware.js";
 import roleMiddleware from "../middleware/role.middleware.js";
 import upload from "../middleware/multer.middleware.js";
-import { createEventController,publishEvent, getPublishedEvents, cancelEvent, completeEvent, updateEvent } from "../controllers/event.controller.js";
+import { createEventController,publishEvent, getPublishedEvents, cancelEvent, completeEvent, updateEvent, getEvent } from "../controllers/event.controller.js";
 
 const router = express.Router();
 
@@ -39,6 +39,12 @@ router.patch(
   "/:id",
   authMiddleware,
   updateEvent
+);
+
+router.get(
+  "/:id",
+  authMiddleware,
+  getEvent
 );
 
 export default router;
