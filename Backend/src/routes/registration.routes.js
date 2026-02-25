@@ -8,11 +8,11 @@ import {
 const router = express.Router();
 
 router.post(
-  "/:eventId/draft",
+  "/:eventId/initiate",
   authMiddleware,
   initiateRegistration
 );
 
-router.post("/verify/:token", verifyMember);
+router.get("/verify/:token", verifyMember);
 
 export default router;
