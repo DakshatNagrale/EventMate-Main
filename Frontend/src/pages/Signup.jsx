@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import api from "../lib/api";
-import SummaryApi from "../common/SummaryApi";
+import SummaryApi from "../api/SummaryApi";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -96,7 +96,7 @@ export default function Signup() {
   const parallaxY = (mousePosition.y - window.innerHeight / 2) / 50;
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50 to-purple-50 relative overflow-hidden">
+    <main className="eventmate-page min-h-[calc(100vh-72px)] bg-gradient-to-br from-gray-50 via-indigo-50 to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/60 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div
           className="absolute w-[600px] h-[600px] top-[-200px] left-[-200px] rounded-full opacity-50 blur-3xl animate-blob-slow"
@@ -128,25 +128,25 @@ export default function Signup() {
         />
       </div>
 
-      <div className="absolute inset-0 bg-gradient-to-t from-white/30 via-transparent to-white/20 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-white/30 via-transparent to-white/20 dark:from-slate-950/40 dark:via-transparent dark:to-slate-900/20 pointer-events-none" />
 
-      <section className="relative z-10 max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 px-6 py-10 items-center min-h-screen">
+      <section className="relative z-10 max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 px-6 py-6 sm:py-8 lg:py-10 items-start lg:items-center min-h-[calc(100vh-72px)]">
         <div className="space-y-8">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <Link
               to="/"
-              className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-indigo-700 transition"
+              className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-300 transition"
             >
               <ArrowLeft size={16} /> Back
             </Link>
 
-            <span className="inline-block px-5 py-1.5 text-xs font-semibold tracking-wider uppercase rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+            <span className="inline-block px-5 py-1.5 text-xs font-semibold tracking-wider uppercase rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-200 dark:border-indigo-400/30">
               Join the Community
             </span>
           </div>
 
           <div>
-            <h1 className="text-4xl xl:text-5xl font-extrabold leading-tight text-gray-900">
+            <h1 className="text-4xl xl:text-5xl font-extrabold leading-tight text-gray-900 dark:text-slate-100">
               Manage Campus <br />
               Events Like a{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
@@ -154,7 +154,7 @@ export default function Signup() {
               </span>
             </h1>
 
-            <p className="mt-6 text-gray-700 max-w-md leading-relaxed text-lg">
+            <p className="mt-6 text-gray-700 dark:text-slate-300 max-w-md leading-relaxed text-lg">
               EventMate connects students and organizers. Discover, plan, and
               attend the best events happening on your campus today.
             </p>
@@ -162,38 +162,38 @@ export default function Signup() {
         </div>
 
         <div className="flex justify-center lg:justify-end animate-slideUp">
-          <div className="w-full max-w-[420px] bg-white/90 backdrop-blur-lg rounded-2xl shadow-2xl hover:shadow-3xl transition duration-500 border border-white/20">
+          <div className="w-full max-w-[420px] bg-white/90 dark:bg-slate-900/85 backdrop-blur-lg rounded-2xl shadow-2xl hover:shadow-3xl transition duration-500 border border-white/20 dark:border-white/10">
             <div className="h-1 rounded-t-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
             <div className="p-8">
-              <h2 className="text-2xl font-bold text-gray-800">
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">
                 Student Registration
               </h2>
 
-              <p className="text-sm text-gray-600 mt-2">
+              <p className="text-sm text-gray-600 dark:text-slate-300 mt-2">
                 Only students can self-register. Organizers are registered by Admin.
               </p>
 
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
                 Join EventMate to start your journey.
               </p>
 
               <form onSubmit={handleSubmit} className="mt-6 space-y-5">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Full Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Full Name</label>
                   <input
                     name="fullName"
                     value={formData.fullName}
                     onChange={handleChange}
                     placeholder="Your Name"
                     required
-                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500/40 focus:border-transparent outline-none transition"
                   />
                   {errors.fullName && <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>}
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Email Address</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Email Address</label>
                   <input
                     type="email"
                     name="email"
@@ -201,38 +201,38 @@ export default function Signup() {
                     onChange={handleChange}
                     placeholder="xyz@gmail.com"
                     required
-                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500/40 focus:border-transparent outline-none transition"
                   />
                   {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Password</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Password</label>
                   <input
                     type="password"
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
                     required
-                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500/40 focus:border-transparent outline-none transition"
                   />
                   {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Confirm Password</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Confirm Password</label>
                   <input
                     type="password"
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     required
-                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500/40 focus:border-transparent outline-none transition"
                   />
                   {errors.confirmPassword && <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>}
                 </div>
 
-                <div className="flex items-center gap-3 text-sm text-gray-600">
+                <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-slate-300">
                   <input
                     type="checkbox"
                     name="agree"
@@ -242,11 +242,11 @@ export default function Signup() {
                   />
                   <span>
                     I agree to the{" "}
-                    <span className="text-indigo-600 font-medium hover:underline cursor-pointer">
+                    <span className="text-indigo-600 dark:text-indigo-300 font-medium hover:underline cursor-pointer">
                       Terms
                     </span>{" "}
                     and{" "}
-                    <span className="text-indigo-600 font-medium hover:underline cursor-pointer">
+                    <span className="text-indigo-600 dark:text-indigo-300 font-medium hover:underline cursor-pointer">
                       Privacy Policy
                     </span>
                   </span>
@@ -262,29 +262,29 @@ export default function Signup() {
                 </button>
 
                 {errors.submit && (
-                  <p className="text-sm text-red-600 text-center bg-red-50 py-2 rounded-lg">
+                  <p className="text-sm text-red-600 dark:text-red-300 text-center bg-red-50 dark:bg-red-500/15 py-2 rounded-lg">
                     {errors.submit}
                   </p>
                 )}
                 {successMessage && (
-                  <p className="text-sm text-green-700 text-center bg-green-50 py-2 rounded-lg">
+                  <p className="text-sm text-green-700 dark:text-emerald-300 text-center bg-green-50 dark:bg-emerald-500/15 py-2 rounded-lg">
                     {successMessage}
                   </p>
                 )}
               </form>
 
               <div className="flex items-center my-6">
-                <div className="flex-1 h-px bg-gray-300" />
-                <span className="px-4 text-xs text-gray-500 font-medium">
+                <div className="flex-1 h-px bg-gray-300 dark:bg-slate-700" />
+                <span className="px-4 text-xs text-gray-500 dark:text-slate-400 font-medium">
                   Already have an account?
                 </span>
-                <div className="flex-1 h-px bg-gray-300" />
+                <div className="flex-1 h-px bg-gray-300 dark:bg-slate-700" />
               </div>
 
               <p className="text-center">
                 <Link
                   to="/login"
-                  className="text-indigo-600 font-semibold hover:underline text-base"
+                  className="text-indigo-600 dark:text-indigo-300 font-semibold hover:underline text-base"
                 >
                   Login
                 </Link>
@@ -333,3 +333,4 @@ export default function Signup() {
     </main>
   );
 }
+

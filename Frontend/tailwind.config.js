@@ -1,12 +1,10 @@
-// tailwind.config.js
-/** @type {import('tailwindcss').Config} */
-module.exports = {
-  content: ["./src/**/*.{js,jsx,ts,tsx}", "./index.html"],
-  darkMode: "class", // Ensures manual control via <html class="dark">
+﻿/** @type {import('"'"'tailwindcss'"'"').Config} */
+const config = {
+  content: ["./src/**/*.{jsx,ts,tsx}", "./index.html"],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        // Custom EventMate palette
         primary: {
           50: "#f5f3ff",
           100: "#ede9fe",
@@ -18,9 +16,11 @@ module.exports = {
         },
       },
       backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
       },
     },
   },
   plugins: [],
-}
+};
+
+export default config;

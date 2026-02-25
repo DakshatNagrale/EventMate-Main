@@ -1,7 +1,7 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api from "../lib/api";
-import SummaryApi from "../common/SummaryApi";
+import SummaryApi from "../api/SummaryApi";
 
 export default function VerifyEmail() {
   const location = useLocation();
@@ -45,43 +45,45 @@ export default function VerifyEmail() {
   };
 
   return (
-    <section className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-blue-50 flex items-center justify-center px-6 py-16">
-      <div className="max-w-lg w-full bg-white/90 backdrop-blur rounded-3xl shadow-2xl border border-white/60 p-8">
+    <section className="eventmate-page min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/60 flex items-center justify-center px-6 py-16">
+      <div className="max-w-lg w-full bg-white/90 dark:bg-slate-900/85 backdrop-blur rounded-3xl shadow-2xl border border-white/60 dark:border-white/10 p-8">
         <div className="mb-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-indigo-500 font-semibold">Verify Email</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-2">Confirm your account</h1>
-          <p className="text-sm text-slate-500 mt-2">
+          <p className="text-xs uppercase tracking-[0.3em] text-indigo-500 dark:text-indigo-300 font-semibold">Verify Email</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2">Confirm your account</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-300 mt-2">
             Enter the OTP sent to your email to activate your EventMate account.
           </p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="text-sm font-medium text-slate-700">Email</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Email</label>
             <input
               name="email"
               type="email"
               value={formData.email}
               onChange={handleChange}
               placeholder="you@college.edu"
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/40"
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700">OTP</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">OTP</label>
             <input
               name="otp"
               value={formData.otp}
               onChange={handleChange}
               placeholder="Enter 6 digit code"
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/40"
             />
           </div>
 
           {message && (
             <p
               className={`text-sm text-center rounded-lg py-2 ${
-                message.type === "success" ? "text-green-700 bg-green-50" : "text-red-600 bg-red-50"
+                message.type === "success"
+                  ? "text-green-700 bg-green-50 dark:bg-emerald-500/15 dark:text-emerald-300"
+                  : "text-red-600 bg-red-50 dark:bg-red-500/15 dark:text-red-300"
               }`}
             >
               {message.text}
@@ -97,11 +99,12 @@ export default function VerifyEmail() {
           </button>
         </form>
 
-        <div className="mt-6 flex items-center justify-between text-sm text-slate-500">
-          <Link to="/signup" className="hover:text-indigo-600">Back to signup</Link>
-          <Link to="/login" className="font-semibold text-indigo-600 hover:underline">Go to login</Link>
+        <div className="mt-6 flex items-center justify-between text-sm text-slate-500 dark:text-slate-300">
+          <Link to="/signup" className="hover:text-indigo-600 dark:hover:text-indigo-300">Back to signup</Link>
+          <Link to="/login" className="font-semibold text-indigo-600 dark:text-indigo-300 hover:underline">Go to login</Link>
         </div>
       </div>
     </section>
   );
 }
+

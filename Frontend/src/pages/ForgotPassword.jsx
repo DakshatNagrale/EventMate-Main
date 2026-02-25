@@ -1,7 +1,7 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../lib/api";
-import SummaryApi from "../common/SummaryApi";
+import SummaryApi from "../api/SummaryApi";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -17,12 +17,8 @@ export default function ForgotPassword() {
   const [isLoading, setIsLoading] = useState(false);
 
   const getErrorMessage = (error, fallback) => {
-    const status = error.response?.status;
     const apiMessage = error.response?.data?.message;
     if (apiMessage) return apiMessage;
-    if (status === 401 || status === 403) {
-      return "Please log in to reset your password. This backend requires authentication.";
-    }
     if (error.request) return "Backend not reachable. Start the backend server and try again.";
     return fallback;
   };
@@ -106,14 +102,14 @@ export default function ForgotPassword() {
   };
 
   return (
-    <section className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 flex items-center justify-center px-6 py-16">
-      <div className="max-w-lg w-full bg-white/90 backdrop-blur rounded-3xl shadow-2xl border border-white/60 p-8">
+    <section className="eventmate-page min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-purple-950/60 flex items-center justify-center px-6 py-16">
+      <div className="max-w-lg w-full bg-white/90 dark:bg-slate-900/85 backdrop-blur rounded-3xl shadow-2xl border border-white/60 dark:border-white/10 p-8">
         <div className="mb-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-indigo-500 font-semibold">Reset Password</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-2">
+          <p className="text-xs uppercase tracking-[0.3em] text-indigo-500 dark:text-indigo-300 font-semibold">Reset Password</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2">
             {step === "email" ? "Request OTP" : "Set a new password"}
           </h1>
-          <p className="text-sm text-slate-500 mt-2">
+          <p className="text-sm text-slate-500 dark:text-slate-300 mt-2">
             {step === "email"
               ? "Enter your email and we will send you a reset OTP."
               : "Enter the OTP and your new password to complete the reset."}
@@ -122,14 +118,14 @@ export default function ForgotPassword() {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="text-sm font-medium text-slate-700">Email</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Email</label>
             <input
               name="email"
               type="email"
               value={formData.email}
               onChange={handleChange}
               placeholder="you@college.edu"
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/40"
               disabled={step === "reset"}
             />
             {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
@@ -138,37 +134,37 @@ export default function ForgotPassword() {
           {step === "reset" && (
             <>
               <div>
-                <label className="text-sm font-medium text-slate-700">OTP</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">OTP</label>
                 <input
                   name="otp"
                   value={formData.otp}
                   onChange={handleChange}
                   placeholder="Enter 6 digit code"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/40"
                 />
                 {errors.otp && <p className="text-xs text-red-600 mt-1">{errors.otp}</p>}
               </div>
               <div>
-                <label className="text-sm font-medium text-slate-700">New Password</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">New Password</label>
                 <input
                   name="newPassword"
                   type="password"
                   value={formData.newPassword}
                   onChange={handleChange}
                   placeholder="Minimum 8 characters"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/40"
                 />
                 {errors.newPassword && <p className="text-xs text-red-600 mt-1">{errors.newPassword}</p>}
               </div>
               <div>
-                <label className="text-sm font-medium text-slate-700">Confirm Password</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Confirm Password</label>
                 <input
                   name="confirmPassword"
                   type="password"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   placeholder="Re-enter new password"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/40"
                 />
                 {errors.confirmPassword && <p className="text-xs text-red-600 mt-1">{errors.confirmPassword}</p>}
               </div>
@@ -178,7 +174,9 @@ export default function ForgotPassword() {
           {message && (
             <p
               className={`text-sm text-center rounded-lg py-2 ${
-                message.type === "success" ? "text-green-700 bg-green-50" : "text-red-600 bg-red-50"
+                message.type === "success"
+                  ? "text-green-700 bg-green-50 dark:bg-emerald-500/15 dark:text-emerald-300"
+                  : "text-red-600 bg-red-50 dark:bg-red-500/15 dark:text-red-300"
               }`}
             >
               {message.text}
@@ -194,12 +192,12 @@ export default function ForgotPassword() {
           </button>
         </form>
 
-        <div className="mt-6 flex items-center justify-between text-sm text-slate-500">
-          <Link to="/login" className="hover:text-indigo-600">Back to login</Link>
+        <div className="mt-6 flex items-center justify-between text-sm text-slate-500 dark:text-slate-300">
+          <Link to="/login" className="hover:text-indigo-600 dark:hover:text-indigo-300">Back to login</Link>
           {step === "reset" && (
             <button
               type="button"
-              className="font-semibold text-indigo-600 hover:underline"
+              className="font-semibold text-indigo-600 dark:text-indigo-300 hover:underline"
               onClick={() => setStep("email")}
             >
               Resend OTP
@@ -210,3 +208,4 @@ export default function ForgotPassword() {
     </section>
   );
 }
+
