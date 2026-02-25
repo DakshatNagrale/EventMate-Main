@@ -5,33 +5,21 @@ const EventSchema = new mongoose.Schema(
     title: {
       type: String,
       required: true,
-      trim: true,
+      trim: true
     },
 
     description: {
       type: String,
-      required: true,
+      required: true
     },
 
     category: {
       type: String,
       enum: ["Technical", "Cultural", "Sports", "Workshop"],
-      required: true,
+      required: true
     },
 
-    posterUrl: {
-      type: String,
-      default: "",
-    },
-
-    /* ================= EVENT TYPE ================= */
-
-    eventType: {
-      type: String,
-      enum: ["INDIVIDUAL", "TEAM"],
-      default: "INDIVIDUAL",
-      required: true,
-    },
+    posterUrl: String,
 
     /* ================= ORGANIZER ================= */
 
@@ -39,12 +27,12 @@ const EventSchema = new mongoose.Schema(
       organizerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true,
+        required: true
       },
       name: { type: String, required: true },
       department: String,
       contactEmail: String,
-      contactPhone: String,
+      contactPhone: String
     },
 
     studentCoordinators: [
@@ -52,10 +40,11 @@ const EventSchema = new mongoose.Schema(
         coordinatorId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
+          default: null
         },
         name: String,
-        email: String,
-      },
+        email: String
+      }
     ],
 
     /* ================= VENUE ================= */
@@ -64,10 +53,10 @@ const EventSchema = new mongoose.Schema(
       mode: {
         type: String,
         enum: ["ONLINE", "OFFLINE", "HYBRID"],
-        required: true,
+        required: true
       },
       location: String,
-      googleMapLink: String,
+      googleMapLink: String
     },
 
     /* ================= SCHEDULE ================= */
@@ -75,106 +64,134 @@ const EventSchema = new mongoose.Schema(
     schedule: {
       startDate: { type: Date, required: true },
       endDate: { type: Date, required: true },
-      startTime: String,
-      endTime: String,
+      startTime: { type: String, required: true },
+      endTime: { type: String, required: true }
     },
 
     /* ================= REGISTRATION ================= */
 
     registration: {
-      isOpen: { type: Boolean, default: false },
-      lastDate: Date,
-
-      // For individual events
-      maxParticipants: Number,
-
-      // For team events
-      maxTeams: Number,
-
+      isOpen: {
+        type: Boolean,
+        default: false
+      },
+      lastDate: {
+        type: Date,
+        required: true
+      },
+      maxParticipants: {
+        type: Number,
+        required: true
+      },
       fee: {
         type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      paymentQrCode: String,
-      paymentUpiId: String,
+        default: 0
+      }
     },
 
     /* ================= TEAM CONFIG ================= */
 
+    isTeamEvent: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
+
     minTeamSize: {
       type: Number,
-      default: 1,
-      min: 1,
+      default: 1
     },
 
     maxTeamSize: {
       type: Number,
-      default: 1,
-      min: 1,
+      default: 1
     },
 
-    /* ================= STATUS ================= */
+    /* ================= ATTENDANCE ================= */
+
+    attendance: {
+      qrCode: String,
+      totalPresent: {
+        type: Number,
+        default: 0
+      }
+    },
+
+    /* ================= CERTIFICATE ================= */
+
+    certificate: {
+      isEnabled: Boolean,
+      templateId: {
+        type: mongoose.Schema.Types.ObjectId
+      },
+      issuedCount: {
+        type: Number,
+        default: 0
+      }
+    },
+
+    /* ================= FEEDBACK ================= */
+
+    feedback: {
+      enabled: Boolean,
+      averageRating: Number
+    },
+
+    /* ================= EVENT STATUS ================= */
 
     status: {
       type: String,
       enum: ["Draft", "Published", "Completed", "Cancelled"],
-      default: "Draft",
+      default: "Draft"
     },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: true
     },
 
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-    },
+      default: null
+    }
   },
   { timestamps: true }
 );
 
-/* ===== VALIDATION ===== */
+/* ==================================================
+   CRITICAL VALIDATION LOGIC (TEAM DISTINCTION FIX)
+================================================== */
 
-EventSchema.pre("save", function (next) {
-  if (this.eventType === "INDIVIDUAL") {
+EventSchema.pre("save", function () {
+
+  // Individual Event
+  if (!this.isTeamEvent) {
     this.minTeamSize = 1;
     this.maxTeamSize = 1;
-    this.registration.maxTeams = null;
+  }
 
-    if (!this.registration.maxParticipants) {
-      return next(
-        new Error("maxParticipants required for INDIVIDUAL event")
-      );
+  // Team Event
+  if (this.isTeamEvent) {
+    if (this.maxTeamSize <= 1) {
+      throw new Error("Team event must have maxTeamSize greater than 1");
+    }
+
+    if (this.minTeamSize < 1) {
+      throw new Error("minTeamSize must be at least 1");
+    }
+
+    if (this.maxTeamSize < this.minTeamSize) {
+      throw new Error("maxTeamSize must be >= minTeamSize");
     }
   }
 
-  if (this.eventType === "TEAM") {
-    this.registration.maxParticipants = null;
-
-    if (!this.registration.maxTeams) {
-      return next(
-        new Error("maxTeams required for TEAM event")
-      );
-    }
-
-    if (this.minTeamSize > this.maxTeamSize) {
-      return next(
-        new Error("minTeamSize cannot exceed maxTeamSize")
-      );
-    }
+  // Registration sanity check
+  if (this.registration.lastDate > this.schedule.startDate) {
+    throw new Error("Registration lastDate cannot be after event startDate");
   }
 
-  next();
 });
-
-/* ===== INDEXES ===== */
-
-EventSchema.index({ category: 1 });
-EventSchema.index({ status: 1 });
-EventSchema.index({ "schedule.startDate": 1 });
 
 export default mongoose.model("Event", EventSchema);

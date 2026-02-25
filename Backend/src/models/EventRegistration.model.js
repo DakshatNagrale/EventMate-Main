@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+/* ================= PARTICIPANT ================= */
+
 const participantSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -8,9 +10,15 @@ const participantSchema = new mongoose.Schema(
     college: { type: String, required: true },
     branch: { type: String, required: true },
     year: { type: String, required: true },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
   },
   { _id: false }
 );
+
+/* ================= MAIN SCHEMA ================= */
 
 const EventRegistrationSchema = new mongoose.Schema(
   {
@@ -35,11 +43,28 @@ const EventRegistrationSchema = new mongoose.Schema(
     teamMembers: {
       type: [participantSchema],
       default: [],
+      emailVerified: {
+  type: Boolean,
+  default: false
+}
     },
 
     totalParticipants: {
       type: Number,
     },
+
+    /* ===== WORKFLOW STATUS ===== */
+
+    status: {
+  type: String,
+  enum: ["Draft", "PendingVerification", "Confirmed", "Rejected"],
+  default: "Draft"
+},
+
+allMembersVerified: {
+  type: Boolean,
+  default: false
+},
 
     /* ================= PAYMENT ================= */
 
@@ -61,7 +86,7 @@ const EventRegistrationSchema = new mongoose.Schema(
       },
 
       paymentScreenshot: {
-        type: String, // Cloudinary URL
+        type: String,
       },
 
       paymentStatus: {
@@ -78,12 +103,6 @@ const EventRegistrationSchema = new mongoose.Schema(
       verifiedAt: Date,
     },
 
-    registrationStatus: {
-      type: String,
-      enum: ["Registered", "Cancelled"],
-      default: "Registered",
-    },
-
     attendanceMarked: {
       type: Boolean,
       default: false,
@@ -98,78 +117,69 @@ const EventRegistrationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-/* ===== VALIDATION ===== */
+/* ================= VALIDATION LOGIC ================= */
 
-EventRegistrationSchema.pre("save", async function (next) {
-  try {
-    const Event = mongoose.model("Event");
-    const event = await Event.findById(this.event);
+EventRegistrationSchema.pre("save", async function () {
+  const Event = mongoose.model("Event");
+  const event = await Event.findById(this.event);
 
-    if (!event) return next(new Error("Event not found"));
+  if (!event) {
+    throw new Error("Event not found");
+  }
 
-    this.totalParticipants = 1 + this.teamMembers.length;
+  this.totalParticipants = 1 + this.teamMembers.length;
 
-    /* ===== INDIVIDUAL EVENT ===== */
+  /* ===== INDIVIDUAL EVENT ===== */
 
-    if (event.eventType === "INDIVIDUAL") {
-      if (this.teamMembers.length > 0)
-        return next(
-          new Error("Individual event cannot have team members")
-        );
-
-      this.teamName = null;
-
-      if (this.totalParticipants !== 1)
-        return next(
-          new Error("Individual event must have exactly 1 participant")
-        );
+  if (event.eventType === "INDIVIDUAL") {
+    if (this.teamMembers.length > 0) {
+      throw new Error("Individual event cannot have team members");
     }
 
-    /* ===== TEAM EVENT ===== */
+    this.teamName = null;
 
-    if (event.eventType === "TEAM") {
-      if (!this.teamName)
-        return next(
-          new Error("Team name required for team event")
-        );
+    if (this.totalParticipants !== 1) {
+      throw new Error("Individual event must have exactly 1 participant");
+    }
+  }
 
-      if (
-        this.totalParticipants < event.minTeamSize ||
-        this.totalParticipants > event.maxTeamSize
-      )
-        return next(
-          new Error(
-            `Team size must be between ${event.minTeamSize} and ${event.maxTeamSize}`
-          )
-        );
+  /* ===== TEAM EVENT ===== */
+
+  if (event.eventType === "TEAM") {
+    if (!this.teamName) {
+      throw new Error("Team name required for team event");
     }
 
-    /* ===== PAYMENT LOGIC ===== */
+    if (
+      this.totalParticipants < event.minTeamSize ||
+      this.totalParticipants > event.maxTeamSize
+    ) {
+      throw new Error(
+        `Team size must be between ${event.minTeamSize} and ${event.maxTeamSize}`
+      );
+    }
+  }
 
-    if (event.registration.fee > 0) {
-      if (!this.payment.transactionId)
-        return next(
-          new Error("Transaction ID required for paid event")
-        );
+  /* ===== PAYMENT LOGIC ===== */
 
-      this.payment.method = "PHONEPE_QR";
-      this.payment.amount = event.registration.fee;
-      this.payment.paymentStatus = "Under Review";
-    } else {
-      this.payment.method = "FREE";
-      this.payment.paymentStatus = "Verified";
+  if (event.registration?.fee > 0) {
+    if (!this.payment.transactionId) {
+      throw new Error("Transaction ID required for paid event");
     }
 
-    next();
-  } catch (error) {
-    next(error);
+    this.payment.method = "PHONEPE_QR";
+    this.payment.amount = event.registration.fee;
+    this.payment.paymentStatus = "Under Review";
+  } else {
+    this.payment.method = "FREE";
+    this.payment.paymentStatus = "Verified";
   }
 });
 
-/* ===== INDEXES ===== */
+/* ================= UNIQUE INDEX ================= */
 
 EventRegistrationSchema.index(
-  { event: 1, "teamLeader.email": 1 },
+  { event: 1, registeredBy: 1 },
   { unique: true }
 );
 

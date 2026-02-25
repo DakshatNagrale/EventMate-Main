@@ -19,7 +19,10 @@ export const createEventController = asyncHandler(async (req, res) => {
     schedule,
     registration,
     certificate,
-    feedback
+    feedback,
+    isTeamEvent,
+    minTeamSize,
+    maxTeamSize
   } = req.body;
 
   if (!title || !category) {
@@ -54,6 +57,10 @@ export const createEventController = asyncHandler(async (req, res) => {
     },
     certificate: certificate ? JSON.parse(certificate) : { isEnabled: false },
     feedback: feedback ? JSON.parse(feedback) : { enabled: false },
+
+    isTeamEvent: isTeamEvent === "true",
+    minTeamSize: minTeamSize ? Number(minTeamSize) : 1,
+    maxTeamSize: maxTeamSize ? Number(maxTeamSize) : 1,
 
     createdBy: req.user._id
   });

@@ -3,6 +3,7 @@ import User from "../models/User.model.js";
 
 export default async function authMiddleware(req, res, next) {
   try {
+    console.log("Auth midleware hit");
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ success: false, message: "Unauthorized" });
 

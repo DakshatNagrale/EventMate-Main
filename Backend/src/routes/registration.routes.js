@@ -1,13 +1,18 @@
 import express from "express";
-import { registerForEvent } from "../controllers/eventRegistration.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
+import {
+  createDraft,
+  verifyMember
+} from "../controllers/registration.controller.js";
 
 const router = express.Router();
 
 router.post(
-  "/:eventId/register",
+  "/:eventId/draft",
   authMiddleware,
-  registerForEvent
+  createDraft
 );
+
+router.post("/verify/:token", verifyMember);
 
 export default router;
