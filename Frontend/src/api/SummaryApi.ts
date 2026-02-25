@@ -85,7 +85,7 @@ const SummaryApi = {
   },
 
   register_for_event: {
-    url: "/api/registrations/:eventId/draft",
+    url: "/api/registrations/:eventId/initiate",
     method: "post",
   },
 
