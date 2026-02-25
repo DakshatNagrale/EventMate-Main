@@ -12,8 +12,8 @@ const participantSchema = new mongoose.Schema(
     year: { type: String, required: true },
     emailVerified: {
       type: Boolean,
-      default: false,
-    },
+      default: false
+    }
   },
   { _id: false }
 );
@@ -26,45 +26,57 @@ const EventRegistrationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Event",
       required: true,
-      index: true,
+      index: true
     },
 
     teamName: {
       type: String,
       trim: true,
-      default: null,
+      default: null
     },
 
     teamLeader: {
       type: participantSchema,
-      required: true,
+      required: true
     },
 
+    // Clean array — emailVerified lives inside participantSchema, not here
     teamMembers: {
       type: [participantSchema],
-      default: [],
-      emailVerified: {
-  type: Boolean,
-  default: false
-}
+      default: []
     },
 
     totalParticipants: {
-      type: Number,
+      type: Number
     },
 
     /* ===== WORKFLOW STATUS ===== */
 
+    // Full lifecycle:
+    // Draft (shouldn't persist long) →
+    // PendingMemberVerification (team members need to verify emails) →
+    // PendingPayment (paid events: waiting for payment submission) →
+    // PendingPaymentVerification (organizer reviewing payment screenshot) →
+    // Confirmed (fully registered) →
+    // Rejected (payment rejected or manually rejected) →
+    // Cancelled (student cancelled)
     status: {
-  type: String,
-  enum: ["Draft", "PendingVerification", "Confirmed", "Rejected"],
-  default: "Draft"
-},
+      type: String,
+      enum: [
+        "PendingMemberVerification",
+        "PendingPayment",
+        "PendingPaymentVerification",
+        "Confirmed",
+        "Rejected",
+        "Cancelled"
+      ],
+      default: "PendingMemberVerification"
+    },
 
-allMembersVerified: {
-  type: Boolean,
-  default: false
-},
+    allMembersVerified: {
+      type: Boolean,
+      default: false
+    },
 
     /* ================= PAYMENT ================= */
 
@@ -72,118 +84,103 @@ allMembersVerified: {
       method: {
         type: String,
         enum: ["FREE", "PHONEPE_QR"],
-        default: "FREE",
+        default: "FREE"
       },
 
       amount: {
         type: Number,
-        default: 0,
+        default: 0
       },
 
       transactionId: {
         type: String,
-        trim: true,
+        trim: true
       },
 
       paymentScreenshot: {
-        type: String,
+        type: String // Cloudinary URL
       },
 
       paymentStatus: {
         type: String,
-        enum: ["Pending", "Under Review", "Verified", "Rejected"],
-        default: "Pending",
+        enum: ["NotRequired", "Pending", "UnderReview", "Verified", "Rejected"],
+        default: "NotRequired"
       },
 
       verifiedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        ref: "User"
       },
 
-      verifiedAt: Date,
+      verifiedAt: Date
     },
 
     attendanceMarked: {
       type: Boolean,
-      default: false,
+      default: false
     },
 
     registeredBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
-    },
+      required: true
+    }
   },
   { timestamps: true }
 );
 
-/* ================= VALIDATION LOGIC ================= */
+/* ================= PRE-SAVE VALIDATION ================= */
 
 EventRegistrationSchema.pre("save", async function () {
+  // Only run full validation on initial creation
+  if (!this.isNew) return;
+
   const Event = mongoose.model("Event");
   const event = await Event.findById(this.event);
 
-  if (!event) {
-    throw new Error("Event not found");
-  }
+  if (!event) throw new Error("Event not found");
 
   this.totalParticipants = 1 + this.teamMembers.length;
 
   /* ===== INDIVIDUAL EVENT ===== */
-
-  if (event.eventType === "INDIVIDUAL") {
-    if (this.teamMembers.length > 0) {
+  if (!event.isTeamEvent) {
+    if (this.teamMembers.length > 0)
       throw new Error("Individual event cannot have team members");
-    }
 
     this.teamName = null;
-
-    if (this.totalParticipants !== 1) {
-      throw new Error("Individual event must have exactly 1 participant");
-    }
   }
 
   /* ===== TEAM EVENT ===== */
-
-  if (event.eventType === "TEAM") {
-    if (!this.teamName) {
+  if (event.isTeamEvent) {
+    if (!this.teamName)
       throw new Error("Team name required for team event");
-    }
 
     if (
       this.totalParticipants < event.minTeamSize ||
       this.totalParticipants > event.maxTeamSize
-    ) {
+    )
       throw new Error(
         `Team size must be between ${event.minTeamSize} and ${event.maxTeamSize}`
       );
-    }
   }
 
-  /* ===== PAYMENT LOGIC ===== */
-
+  /* ===== PAYMENT METHOD ===== */
   if (event.registration?.fee > 0) {
-    if (!this.payment.transactionId) {
-      throw new Error("Transaction ID required for paid event");
-    }
-
     this.payment.method = "PHONEPE_QR";
     this.payment.amount = event.registration.fee;
-    this.payment.paymentStatus = "Under Review";
+    this.payment.paymentStatus = "Pending";
   } else {
     this.payment.method = "FREE";
-    this.payment.paymentStatus = "Verified";
+    this.payment.paymentStatus = "NotRequired";
   }
 });
 
 /* ================= UNIQUE INDEX ================= */
 
+// One registration per user per event
 EventRegistrationSchema.index(
   { event: 1, registeredBy: 1 },
   { unique: true }
 );
 
-export default mongoose.model(
-  "EventRegistration",
-  EventRegistrationSchema
-);
+export default mongoose.model("EventRegistration", EventRegistrationSchema);
