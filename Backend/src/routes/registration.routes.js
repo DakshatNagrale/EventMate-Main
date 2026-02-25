@@ -8,7 +8,7 @@ import {
 const router = express.Router();
 
 router.post(
-  "/:eventId/initiate",
+  "/:eventId/draft",
   authMiddleware,
   initiateRegistration
 );
