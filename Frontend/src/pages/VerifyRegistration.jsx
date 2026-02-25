@@ -20,7 +20,7 @@ export default function VerifyRegistration() {
       try {
         const response = await api({
           url: `/api/registrations/verify/${encodeURIComponent(token)}`,
-          method: "post",
+          method: "get",
           skipAuth: true,
         });
         setMessage({
