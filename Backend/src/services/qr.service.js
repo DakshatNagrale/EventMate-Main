@@ -1,0 +1,164 @@
+import QRCode from "qrcode";
+import { v2 as cloudinary } from "cloudinary";
+import crypto from "crypto";
+import ParticipantQR from "../models/ParticipantQR.model.js";
+import sendEmail from "../config/sendEmail.js";
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+/* ================================================
+   GENERATE QR IMAGE AND UPLOAD TO CLOUDINARY
+   QR only encodes a clean verification URL — nothing sensitive
+================================================ */
+
+const generateAndUploadQR = async (token) => {
+  // Only the verification URL — clean and safe when scanned by anyone
+  const verifyUrl = `${process.env.FRONTEND_URL}/attendance/verify?token=${token}`;
+
+  const qrBuffer = await QRCode.toBuffer(verifyUrl, {
+    type: "png",
+    width: 400,
+    margin: 2,
+    color: {
+      dark: "#000000",
+      light: "#FFFFFF"
+    }
+  });
+
+  const uploadResult = await new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: "eventmate/qrcodes",
+        public_id: `qr_${token}`,
+        format: "png"
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    uploadStream.end(qrBuffer);
+  });
+
+  return uploadResult.secure_url;
+};
+
+/* ================================================
+   EMAIL TEMPLATE
+================================================ */
+
+const qrEmailTemplate = ({ participantName, eventName, eventDate, venue, qrImageUrl }) => `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #f9f9f9;">
+    
+    <div style="background: #4f46e5; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 24px;">🎉 You're Registered!</h1>
+    </div>
+
+    <div style="background: white; padding: 32px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+      
+      <p style="font-size: 16px; color: #374151;">Hi <strong>${participantName}</strong>,</p>
+      
+      <p style="font-size: 15px; color: #374151;">
+        You've been successfully registered for <strong>${eventName}</strong>.
+        Present this QR code at the event entrance for attendance verification.
+      </p>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <img 
+          src="${qrImageUrl}" 
+          alt="Your Attendance QR Code"
+          style="width: 220px; height: 220px; border: 3px solid #e5e7eb; border-radius: 12px; padding: 8px;"
+        />
+        <p style="color: #6b7280; font-size: 13px; margin-top: 8px;">
+          Your unique QR code — do not share
+        </p>
+      </div>
+
+      <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin-top: 16px;">
+        <p style="margin: 0 0 8px; font-size: 14px; color: #374151;">
+          <strong>📅 Event:</strong> ${eventName}
+        </p>
+        <p style="margin: 0 0 8px; font-size: 14px; color: #374151;">
+          <strong>📆 Date:</strong> ${eventDate}
+        </p>
+        <p style="margin: 0; font-size: 14px; color: #374151;">
+          <strong>📍 Venue:</strong> ${venue}
+        </p>
+      </div>
+
+      <p style="font-size: 13px; color: #9ca3af; margin-top: 24px; text-align: center;">
+        You can also view your QR code anytime on your EventMate dashboard.
+      </p>
+
+    </div>
+
+    <p style="text-align: center; font-size: 12px; color: #9ca3af; margin-top: 16px;">
+      — EventMate Team
+    </p>
+
+  </div>
+`;
+
+/* ================================================
+   MAIN EXPORT
+================================================ */
+
+export const generateQRsForRegistration = async (registration, event) => {
+  const isTeam = event.isTeamEvent;
+
+  // For solo events — only participant, role = "participant"
+  // For team events — leader first, then members
+  const participants = isTeam
+    ? [
+        { name: registration.teamLeader.name, email: registration.teamLeader.email, role: "leader" },
+        ...registration.teamMembers.map((m) => ({
+          name: m.name,
+          email: m.email,
+          role: "participant"
+        }))
+      ]
+    : [
+        { name: registration.teamLeader.name, email: registration.teamLeader.email, role: "participant" }
+      ];
+
+  const eventDate = event.schedule?.startDate
+    ? new Date(event.schedule.startDate).toDateString()
+    : "TBA";
+
+  const venue = event.venue?.location || event.venue?.mode || "TBA";
+
+  for (const participant of participants) {
+    const token = crypto.randomBytes(32).toString("hex");
+
+    // Upload QR with only the token URL inside
+    const qrImageUrl = await generateAndUploadQR(token);
+
+    // Save to DB with all the info linked to the token
+    await ParticipantQR.create({
+      registration: registration._id,
+      eventId: event._id,
+      name: participant.name,
+      email: participant.email,
+      role: participant.role,
+      token,
+      qrImageUrl
+    });
+
+    // Send confirmation email
+    await sendEmail(
+      participant.email,
+      `You're Registered! — ${event.title}`,
+      qrEmailTemplate({
+        participantName: participant.name,
+        eventName: event.title,
+        eventDate,
+        venue,
+        qrImageUrl
+      })
+    );
+  }
+};
