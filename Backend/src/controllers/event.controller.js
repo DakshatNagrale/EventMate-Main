@@ -1,4 +1,5 @@
 import Event from "../models/Event.model.js";
+import User from "../models/User.model.js";
 import uploadImageCloudinary from "../utils/uploadImageCloudinary.js";
 import {asyncHandler} from "../utils/asyncHandler.js";
 
@@ -325,6 +326,60 @@ export const getEvent = async (req, res, next) => {
       data: event
     });
     
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// ASSIGN COORDINATOR TO EVENT
+export const assignCoordinator = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+    const { coordinatorId } = req.body;
+
+    // Find event
+    const event = await Event.findById(eventId);
+    if (!event)
+      return res.status(404).json({ success: false, message: "Event not found" });
+
+    // Only event organizer or admin can assign
+    if (
+      req.user.role !== "MAIN_ADMIN" &&
+      event.createdBy.toString() !== req.user._id.toString()
+    )
+      return res.status(403).json({ success: false, message: "Not authorized" });
+
+    // Find coordinator and verify their role
+    const coordinator = await User.findById(coordinatorId);
+    if (!coordinator)
+      return res.status(404).json({ success: false, message: "Coordinator not found" });
+
+    if (coordinator.role !== "STUDENT_COORDINATOR")
+      return res.status(400).json({ success: false, message: "User is not a Student Coordinator" });
+
+    // Check if already assigned
+    const alreadyAssigned = event.studentCoordinators.some(
+      (c) => c.coordinatorId.toString() === coordinatorId
+    );
+    if (alreadyAssigned)
+      return res.status(400).json({ success: false, message: "Coordinator already assigned to this event" });
+
+    // Assign
+    event.studentCoordinators.push({
+      coordinatorId: coordinator._id,
+      name: coordinator.fullName,
+      email: coordinator.email
+    });
+
+    await event.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Coordinator assigned successfully",
+      data: event.studentCoordinators
+    });
+
   } catch (error) {
     next(error);
   }
