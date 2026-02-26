@@ -61,3 +61,38 @@ export const getEventRegistrations = async (req, res, next) => {
     next(error);
   }
 };
+
+// Organizer/Coordinator — scan QR token
+export const markAttendance = async (req, res, next) => {
+  try {
+    const result = await registrationService.markAttendance(
+      req.params.token,
+      req.user
+    );
+    return res.status(200).json({
+      success: true,
+      message: `Attendance marked for ${result.participantName}`,
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Admin — mark attendance manually
+export const markAttendanceManual = async (req, res, next) => {
+  try {
+    const result = await registrationService.markAttendanceManual(
+      req.params.registrationId,
+      req.body.email,
+      req.user._id
+    );
+    return res.status(200).json({
+      success: true,
+      message: `Attendance marked for ${result.participantName}`,
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};

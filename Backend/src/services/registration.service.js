@@ -264,3 +264,92 @@ const sendMemberVerificationEmails = async (registration, teamMembers) => {
     );
   }
 };
+
+/* ================================================
+   MARK ATTENDANCE VIA QR TOKEN
+   Called when organizer/coordinator scans QR
+================================================ */
+
+export const markAttendance = async (token, scannedBy) => {
+
+  // Find QR record
+  const qr = await ParticipantQR.findOne({ token });
+  if (!qr) throw new Error("Invalid QR code");
+
+  // Already attended check
+  if (qr.attendanceMarked)
+    throw new Error(`Attendance already marked for ${qr.name}`);
+
+  // Find the event
+  const event = await Event.findById(qr.eventId);
+  if (!event) throw new Error("Event not found");
+
+// Event must be happening today
+const today = new Date();
+const eventStart = new Date(event.schedule.startDate);
+const eventEnd = new Date(event.schedule.endDate);
+
+// Strip time — compare dates only
+today.setHours(0, 0, 0, 0);
+eventStart.setHours(0, 0, 0, 0);
+eventEnd.setHours(0, 0, 0, 0);
+
+if (today < eventStart || today > eventEnd)
+  throw new Error("Attendance can only be marked on the event day");
+
+  // Authorization check
+  // Must be the organizer OR an assigned coordinator of THIS event
+  const isOrganizer =
+    event.createdBy.toString() === scannedBy._id.toString();
+
+  const isAssignedCoordinator = event.studentCoordinators.some(
+    (c) => c.coordinatorId.toString() === scannedBy._id.toString()
+  );
+
+  if (!isOrganizer && !isAssignedCoordinator)
+    throw new Error("Not authorized to mark attendance for this event");
+
+  // Mark attendance
+  qr.attendanceMarked = true;
+  qr.attendanceMarkedAt = new Date();
+  qr.attendanceMarkedBy = scannedBy._id;
+  await qr.save();
+
+  return {
+    participantName: qr.name,
+    email: qr.email,
+    role: qr.role,
+    eventName: event.title,
+    markedAt: qr.attendanceMarkedAt
+  };
+};
+
+/* ================================================
+   MARK ATTENDANCE MANUALLY — ADMIN ONLY
+   Admin marks directly from participant list
+================================================ */
+
+export const markAttendanceManual = async (registrationId, email, adminId) => {
+
+  const qr = await ParticipantQR.findOne({
+    registration: registrationId,
+    email
+  });
+
+  if (!qr) throw new Error("Participant not found");
+
+  if (qr.attendanceMarked)
+    throw new Error(`Attendance already marked for ${qr.name}`);
+
+  qr.attendanceMarked = true;
+  qr.attendanceMarkedAt = new Date();
+  qr.attendanceMarkedBy = adminId;
+  await qr.save();
+
+  return {
+    participantName: qr.name,
+    email: qr.email,
+    role: qr.role,
+    markedAt: qr.attendanceMarkedAt
+  };
+};

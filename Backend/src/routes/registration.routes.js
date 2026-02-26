@@ -5,7 +5,9 @@ import {
   initiateRegistration,
   verifyMember,
   getMyRegistrations,
-  getEventRegistrations
+  getEventRegistrations,
+  markAttendanceManual,
+  markAttendance
 } from "../controllers/registration.controller.js";
 
 const router = express.Router();
@@ -25,6 +27,22 @@ router.get(
   authMiddleware,
   roleMiddleware("MAIN_ADMIN", "ORGANIZER"),
   getEventRegistrations
+);
+
+// Organizer/Coordinator scans QR
+router.patch(
+  "/attendance/:token",
+  authMiddleware,
+  roleMiddleware("ORGANIZER", "STUDENT_COORDINATOR"),
+  markAttendance
+);
+
+// Admin marks attendance manually
+router.patch(
+  "/:registrationId/attendance/manual",
+  authMiddleware,
+  roleMiddleware("MAIN_ADMIN"),
+  markAttendanceManual
 );
 
 export default router;
