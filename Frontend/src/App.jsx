@@ -127,6 +127,12 @@ const StudentMyEvents = lazy(() =>
   }))
 );
 
+const StudentEventQRCode = lazy(() =>
+  import("./pages/StudentEventQRCode").catch(() => ({
+    default: () => <div>QR pass loading...</div>,
+  }))
+);
+
 const StudentContactUs = lazy(() =>
   import("./pages/StudentContactUs").catch(() => ({
     default: () => <div>Contact loading...</div>,
@@ -475,6 +481,14 @@ export default function App() {
               element={
                 <Suspense fallback={<div className="p-8 text-center">Loading My Events...</div>}>
                   <StudentMyEvents />
+                </Suspense>
+              }
+            />
+            <Route
+              path="my-events/qr/:registrationId"
+              element={
+                <Suspense fallback={<div className="p-8 text-center">Loading QR Pass...</div>}>
+                  <StudentEventQRCode />
                 </Suspense>
               }
             />

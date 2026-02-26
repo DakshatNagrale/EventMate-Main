@@ -3,13 +3,11 @@ import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
-import { storeAuth } from "../lib/auth";
 import AvatarWithFrame from "../components/AvatarWithFrame";
 import {
   DEFAULT_AVATAR_FRAME,
   getAvatarFrameOptionsForRole,
   isAvatarFrameAllowedForRole,
-  normalizeAvatarFrame,
 } from "../constants/profileCustomization";
 
 const ROLE_LABELS = {
@@ -62,10 +60,7 @@ export default function ProfileCustomization() {
       const response = await api({ ...SummaryApi.get_profile });
       const user = response.data?.user || null;
       setProfile(user);
-      const nextFrame = normalizeAvatarFrame(user?.profilePreferences?.avatarFrame);
-      setSelectedFrame(
-        isAvatarFrameAllowedForRole(nextFrame, user?.role) ? nextFrame : DEFAULT_AVATAR_FRAME
-      );
+      setSelectedFrame(DEFAULT_AVATAR_FRAME);
     } catch (error) {
       setMessage({
         type: "error",
@@ -87,33 +82,10 @@ export default function ProfileCustomization() {
   }, [role, selectedFrame]);
 
   const handleSave = async () => {
-    setLoading((prev) => ({ ...prev, save: true }));
-    setMessage(null);
-    try {
-      const response = await api({
-        ...SummaryApi.update_profile,
-        data: { profilePreferences: { avatarFrame: selectedFrame } },
-      });
-
-      const updated = response.data?.user || null;
-      if (updated) {
-        setProfile(updated);
-        setSelectedFrame(normalizeAvatarFrame(updated?.profilePreferences?.avatarFrame));
-        storeAuth({ user: updated });
-      }
-
-      setMessage({
-        type: "success",
-        text: response.data?.message || "Profile customization saved.",
-      });
-    } catch (error) {
-      setMessage({
-        type: "error",
-        text: error.response?.data?.message || "Unable to save profile customization.",
-      });
-    } finally {
-      setLoading((prev) => ({ ...prev, save: false }));
-    }
+    setMessage({
+      type: "error",
+      text: "Avatar frame customization is not supported by the current backend user schema.",
+    });
   };
 
   return (
@@ -128,7 +100,7 @@ export default function ProfileCustomization() {
               </span>
               <h1 className="mt-3 text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Avatar Frame Customization</h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-                Choose from animated and wing-style frames, then apply your selection instantly to your profile.
+                Preview available frames for your role. Saving is disabled because the current backend user schema has no avatar-frame field.
               </p>
             </div>
 
@@ -188,11 +160,10 @@ export default function ProfileCustomization() {
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={loading.save}
+                disabled
                 className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-70"
               >
-                {loading.save ? <Loader2 size={15} className="animate-spin" /> : null}
-                {loading.save ? "Saving..." : "Save Frame Selection"}
+                Backend Support Pending
               </button>
             </aside>
 

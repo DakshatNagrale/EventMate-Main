@@ -14,7 +14,7 @@ import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
 import { getStoredUser } from "../lib/auth";
 import { logoutUser } from "../lib/logout";
-import { extractEventList } from "../lib/backendAdapters";
+import { extractEventList, isRouteMissing } from "../lib/backendAdapters";
 
 const STATUS_STYLES = {
   Draft: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
@@ -49,7 +49,7 @@ const sortByRecent = (items) =>
 export default function OrganizerDashboard() {
   const navigate = useNavigate();
   const user = getStoredUser();
-  const userId = normalizeId(user?._id);
+  const organizerId = normalizeId(user?._id);
 
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,18 +63,34 @@ export default function OrganizerDashboard() {
       setRefreshing(true);
     } else {
       setLoading(true);
+      setMessage(null);
     }
     setError(null);
 
     try {
-      const publishedResponse = await api({ ...SummaryApi.get_public_events });
-      const publishedEvents = extractEventList(publishedResponse.data);
-
-      const ownPublished = publishedEvents.filter(
-        (event) => normalizeId(event?.organizer?.organizerId) === userId
-      );
-      setEvents(sortByRecent(ownPublished));
+      const response = await api({ ...SummaryApi.get_my_events });
+      const myEvents = extractEventList(response.data);
+      setEvents(sortByRecent(myEvents));
     } catch (err) {
+      // Backward compatibility with older backend builds
+      if (isRouteMissing(err)) {
+        try {
+          const publishedResponse = await api({ ...SummaryApi.get_public_events });
+          const publishedEvents = extractEventList(publishedResponse.data);
+          const ownPublished = publishedEvents.filter(
+            (event) => normalizeId(event?.organizer?.organizerId) === organizerId
+          );
+          setEvents(sortByRecent(ownPublished));
+          setMessage({
+            type: "error",
+            text: "Showing only published events because /api/events/mine is unavailable on backend.",
+          });
+          return;
+        } catch (fallbackErr) {
+          setError(fallbackErr.response?.data?.message || "Unable to load events.");
+          return;
+        }
+      }
       setError(err.response?.data?.message || "Unable to load events.");
     } finally {
       setLoading(false);
@@ -84,7 +100,7 @@ export default function OrganizerDashboard() {
 
   useEffect(() => {
     fetchMyEvents();
-  }, [userId]);
+  }, [organizerId]);
 
   const handleLogout = async () => {
     await logoutUser();
@@ -244,9 +260,6 @@ export default function OrganizerDashboard() {
         {!loading && !error && (
           <section id="my-events" className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-5 sm:p-6">
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white">My Events</h2>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              This backend currently exposes only published event listing for organizer dashboards.
-            </p>
 
             <div className="mt-5 overflow-x-auto">
               <table className="min-w-full text-sm">

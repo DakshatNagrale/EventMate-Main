@@ -5,7 +5,6 @@ import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
 import { storeAuth } from "../lib/auth";
 import AvatarWithFrame from "../components/AvatarWithFrame";
-import { normalizeAvatarFrame } from "../constants/profileCustomization";
 
 const yearOptions = ["1st", "2nd", "3rd", "4th"];
 
@@ -18,12 +17,6 @@ const ROLE_LABELS = {
 
 const PROFILE_CUSTOMIZATION_PATH = "/profile/customization";
 
-const COORDINATOR_STATUS_OPTIONS = [
-  { value: "ACTIVE", label: "Active" },
-  { value: "ON_HOLD", label: "On Hold" },
-  { value: "SUSPENDED", label: "Suspended" },
-];
-
 const emptyForm = {
   fullName: "",
   mobileNumber: "",
@@ -32,9 +25,6 @@ const emptyForm = {
   academicYear: "",
   professionalDepartment: "",
   professionalOccupation: "",
-  coordinatorAssignedEventId: "",
-  coordinatorScope: "",
-  coordinatorStatus: "ACTIVE",
 };
 
 const userToForm = (user) => ({
@@ -45,9 +35,6 @@ const userToForm = (user) => ({
   academicYear: user?.academicProfile?.year || "",
   professionalDepartment: user?.professionalProfile?.department || "",
   professionalOccupation: user?.professionalProfile?.occupation || "",
-  coordinatorAssignedEventId: user?.coordinatorProfile?.assignedEventId || "",
-  coordinatorScope: user?.coordinatorProfile?.scope || "",
-  coordinatorStatus: user?.coordinatorProfile?.status || "ACTIVE",
 });
 
 export default function Profile() {
@@ -63,7 +50,7 @@ export default function Profile() {
   const isOrganizer = role === "ORGANIZER";
   const isAdmin = role === "MAIN_ADMIN";
   const canEditProfessional = isOrganizer || isAdmin || isCoordinator;
-  const selectedAvatarFrame = normalizeAvatarFrame(profile?.profilePreferences?.avatarFrame);
+  const selectedAvatarFrame = "NONE";
 
   const roleBadgeClass = useMemo(() => {
     if (isAdmin) return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200";
@@ -121,14 +108,6 @@ export default function Profile() {
         payload.professionalProfile = {
           department: formData.professionalDepartment.trim() || undefined,
           occupation: formData.professionalOccupation.trim() || undefined,
-        };
-      }
-
-      if (isCoordinator) {
-        payload.coordinatorProfile = {
-          assignedEventId: formData.coordinatorAssignedEventId.trim() || undefined,
-          scope: formData.coordinatorScope.trim() || undefined,
-          status: formData.coordinatorStatus || undefined,
         };
       }
 
@@ -389,43 +368,9 @@ export default function Profile() {
                 )}
 
                 {isCoordinator && (
-                  <>
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Assigned Event ID</span>
-                        <input
-                          name="coordinatorAssignedEventId"
-                          value={formData.coordinatorAssignedEventId}
-                          onChange={handleChange}
-                          className="mt-1 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/30"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Scope</span>
-                        <input
-                          name="coordinatorScope"
-                          value={formData.coordinatorScope}
-                          onChange={handleChange}
-                          className="mt-1 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/30"
-                        />
-                      </label>
-                    </div>
-                    <label className="block sm:max-w-xs">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Coordinator Status</span>
-                      <select
-                        name="coordinatorStatus"
-                        value={formData.coordinatorStatus}
-                        onChange={handleChange}
-                        className="mt-1 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/30"
-                      >
-                        {COORDINATOR_STATUS_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </>
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200">
+                    Coordinator assignment/scope fields are backend-managed and not editable from profile settings.
+                  </p>
                 )}
 
                 <button

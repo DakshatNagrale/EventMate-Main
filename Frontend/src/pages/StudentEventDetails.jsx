@@ -234,7 +234,14 @@ export default function StudentEventDetails({ mode = "details" }) {
         Number(response.data?.data?.totalParticipants) ||
         (isTeamRegistration ? teamMembers.length + 1 : 1);
 
-      setMessage({ type: "success", text: response.data?.message || "Registered successfully." });
+      const registrationStatus = String(response.data?.data?.status || "").trim();
+      const qrReadyNow = registrationStatus === "Confirmed";
+      setMessage({
+        type: "success",
+        text: qrReadyNow
+          ? "Registered successfully. Your QR pass is now available in My Events."
+          : "Registered successfully. Your QR pass will appear in My Events once registration is confirmed.",
+      });
       setIsRegistered(true);
       setEvent((prev) =>
         prev
@@ -335,6 +342,15 @@ export default function StudentEventDetails({ mode = "details" }) {
                   >
                     {message.text}
                   </p>
+                )}
+                {message?.type === "success" && (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/student-dashboard/my-events")}
+                    className="mb-4 inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                  >
+                    Open My Events
+                  </button>
                 )}
 
                 {registrationWarning && (

@@ -21,13 +21,6 @@ const formatDateTime = (value) => {
   });
 };
 
-const toList = (payload) => {
-  if (Array.isArray(payload?.messages)) return payload.messages;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.data?.messages)) return payload.data.messages;
-  return [];
-};
-
 const buildSystemNotifications = (users) => {
   const now = Date.now();
   const rows = [];
@@ -77,7 +70,6 @@ export default function AdminNotifications() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
-  const [mode, setMode] = useState("system_fallback");
   const [warning, setWarning] = useState(null);
 
   const fetchMessages = async () => {
@@ -85,38 +77,13 @@ export default function AdminNotifications() {
     setWarning(null);
 
     try {
-      const response = await api({ ...SummaryApi.get_admin_contact_messages });
-      const rows = toList(response.data).map((item, index) => ({
-        _id: String(item?._id || item?.id || item?.createdAt || index),
-        subject: item?.subject || "Message",
-        message: item?.message || "-",
-        status: String(item?.status || "UNREAD").toUpperCase(),
-        createdAt: item?.createdAt,
-        readAt: item?.readAt,
-        source: item?.source || "Contact Channel",
-      }));
-
-      setMessages(rows);
-      setMode("contact_api");
+      const usersResponse = await api({ ...SummaryApi.get_all_users });
+      const users = Array.isArray(usersResponse.data?.users) ? usersResponse.data.users : [];
+      setMessages(buildSystemNotifications(users));
+      setWarning("Contact-notification APIs are unavailable. Showing backend-derived system alerts from user records.");
     } catch (error) {
-      const status = Number(error?.response?.status);
-      if (status === 404 || status === 403) {
-        try {
-          const usersResponse = await api({ ...SummaryApi.get_all_users });
-          const users = Array.isArray(usersResponse.data?.users) ? usersResponse.data.users : [];
-          setMessages(buildSystemNotifications(users));
-          setMode("system_fallback");
-          setWarning("Contact-notification APIs are unavailable. Showing backend-derived system alerts from user records.");
-        } catch (fallbackError) {
-          setMessages([]);
-          setMode("system_fallback");
-          setWarning(fallbackError.response?.data?.message || "Unable to load notifications.");
-        }
-      } else {
-        setMessages([]);
-        setMode("system_fallback");
-        setWarning(error.response?.data?.message || "Unable to load notifications.");
-      }
+      setMessages([]);
+      setWarning(error.response?.data?.message || "Unable to load notifications.");
     } finally {
       setLoading(false);
     }
@@ -141,19 +108,6 @@ export default function AdminNotifications() {
   }, [unreadCount]);
 
   const markAsRead = async (id) => {
-    if (mode === "contact_api") {
-      try {
-        await api({
-          ...SummaryApi.mark_admin_contact_message_read,
-          url: SummaryApi.mark_admin_contact_message_read.url.replace(":id", id),
-        });
-        await fetchMessages();
-      } catch {
-        // no-op: keep current state
-      }
-      return;
-    }
-
     setMessages((prev) =>
       prev.map((item) =>
         item._id === id ? { ...item, status: "READ", readAt: new Date().toISOString() } : item
@@ -163,17 +117,6 @@ export default function AdminNotifications() {
 
   const markAllAsRead = async () => {
     setMarkingAll(true);
-
-    if (mode === "contact_api") {
-      try {
-        await api({ ...SummaryApi.mark_all_admin_contact_messages_read });
-        await fetchMessages();
-      } finally {
-        setMarkingAll(false);
-      }
-      return;
-    }
-
     const now = new Date().toISOString();
     setMessages((prev) => prev.map((item) => ({ ...item, status: "READ", readAt: item.readAt || now })));
     setMarkingAll(false);
@@ -232,7 +175,7 @@ export default function AdminNotifications() {
           <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
             <p className="text-sm text-slate-500 dark:text-slate-300">Source Mode</p>
             <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
-              {mode === "contact_api" ? "Contact API" : "System Alerts"}
+              System Alerts
             </p>
           </article>
         </section>

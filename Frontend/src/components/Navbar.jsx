@@ -13,7 +13,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from "framer-motion";
 import { useTheme } from '../context/ThemeContext';
 import AvatarWithFrame from './AvatarWithFrame';
-import { normalizeAvatarFrame } from '../constants/profileCustomization';
+import { DEFAULT_AVATAR_FRAME } from '../constants/profileCustomization';
 
 const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -35,7 +35,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
   const isPrivileged = isAdmin || isOrganizer;
   const displayName = user?.fullName || user?.name || 'User';
   const avatarUrl = user?.avatar || "";
-  const avatarFrame = normalizeAvatarFrame(user?.profilePreferences?.avatarFrame);
+  const avatarFrame = DEFAULT_AVATAR_FRAME;
   const avatarInitials = (displayName || "US")
     .split(" ")
     .filter(Boolean)

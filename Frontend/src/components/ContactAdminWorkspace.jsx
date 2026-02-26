@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, AlertCircle, Loader2, Mail, RefreshCcw, SendHorizontal } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getStoredUser } from "../lib/auth";
 import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
+
+const API_UNAVAILABLE_NOTICE =
+  "Contact message APIs are not available in this backend build. Use listed admin contacts directly.";
 
 const STATUS_LABEL = {
   UNREAD: "Pending",
@@ -13,13 +16,6 @@ const STATUS_LABEL = {
 const STATUS_STYLE = {
   UNREAD: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
   READ: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
-};
-
-const toList = (payload) => {
-  if (Array.isArray(payload?.messages)) return payload.messages;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.data?.messages)) return payload.data.messages;
-  return [];
 };
 
 const formatDateTime = (value) => {
@@ -43,7 +39,6 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [apiWarning, setApiWarning] = useState(null);
@@ -53,23 +48,9 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
 
   const fetchMessages = async () => {
     setLoadingMessages(true);
-    setApiWarning(null);
-
-    try {
-      const response = await api({ ...SummaryApi.get_my_contact_messages });
-      const rows = toList(response.data);
-      setMessages(rows);
-    } catch (fetchError) {
-      const status = Number(fetchError?.response?.status);
-      setMessages([]);
-      if (status === 404) {
-        setApiWarning("Backend does not expose '/api/user/contact-admin' routes in this build.");
-      } else {
-        setApiWarning(fetchError.response?.data?.message || "Unable to load contact history.");
-      }
-    } finally {
-      setLoadingMessages(false);
-    }
+    setMessages([]);
+    setApiWarning(API_UNAVAILABLE_NOTICE);
+    setLoadingMessages(false);
   };
 
   const fetchAdminContacts = async () => {
@@ -99,7 +80,7 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
     fetchAdminContacts();
   }, [user?._id]);
 
-  const sendDisabled = useMemo(() => apiWarning?.includes("does not expose") || sending, [apiWarning, sending]);
+  const sendDisabled = true;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -117,32 +98,8 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
     }
 
     if (sendDisabled) {
-      setError("Contact-admin API is unavailable in this backend build.");
+      setError(API_UNAVAILABLE_NOTICE);
       return;
-    }
-
-    setSending(true);
-    try {
-      const response = await api({
-        ...SummaryApi.send_contact_admin,
-        data: {
-          subject: subject.trim(),
-          message: message.trim(),
-        },
-      });
-
-      setSuccess(response.data?.message || "Message sent successfully.");
-      setSubject("");
-      setMessage("");
-      await fetchMessages();
-    } catch (sendError) {
-      const status = Number(sendError?.response?.status);
-      if (status === 404) {
-        setApiWarning("Backend does not expose '/api/user/contact-admin' routes in this build.");
-      }
-      setError(sendError.response?.data?.message || "Unable to send message.");
-    } finally {
-      setSending(false);
     }
   };
 
@@ -210,8 +167,8 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
                 disabled={sendDisabled}
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
               >
-                {sending ? <Loader2 size={15} className="animate-spin" /> : <SendHorizontal size={15} />}
-                {sending ? "Sending..." : "Send Message"}
+                <SendHorizontal size={15} />
+                Send Message
               </button>
             </form>
           </section>

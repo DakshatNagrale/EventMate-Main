@@ -23,6 +23,12 @@ const initialForm = {
   poster: null,
 };
 
+const fieldClass =
+  "w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 dark:placeholder-slate-500 dark:[color-scheme:dark]";
+const dateTimeFieldClass = `${fieldClass} dark:[color-scheme:dark]`;
+const prefixedFieldClass =
+  "w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 pl-10 pr-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 dark:placeholder-slate-500 dark:[color-scheme:dark]";
+
 export default function OrganizerCreateEvent() {
   const navigate = useNavigate();
 
@@ -257,7 +263,7 @@ export default function OrganizerCreateEvent() {
                     value={form.title}
                     onChange={handleChange}
                     placeholder="Event title"
-                    className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
+                    className={fieldClass}
                   />
                   <textarea
                     name="description"
@@ -265,13 +271,13 @@ export default function OrganizerCreateEvent() {
                     onChange={handleChange}
                     rows={4}
                     placeholder="Event description"
-                    className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
+                    className={fieldClass}
                   />
                   <select
                     name="category"
                     value={form.category}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
+                    className={fieldClass}
                   >
                     <option value="">Select category</option>
                     <option value="Technical">Technical</option>
@@ -285,92 +291,153 @@ export default function OrganizerCreateEvent() {
               <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
                 <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Schedule & Venue</h2>
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input type="date" name="startDate" value={form.startDate} onChange={handleChange} className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm" />
-                  <input type="time" name="startTime" value={form.startTime} onChange={handleChange} className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm" />
-                  <input type="date" name="endDate" value={form.endDate} onChange={handleChange} className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm" />
-                  <input type="time" name="endTime" value={form.endTime} onChange={handleChange} className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm" />
+                  <input type="date" name="startDate" value={form.startDate} onChange={handleChange} className={dateTimeFieldClass} />
+                  <input type="time" name="startTime" value={form.startTime} onChange={handleChange} className={dateTimeFieldClass} />
+                  <input type="date" name="endDate" value={form.endDate} onChange={handleChange} className={dateTimeFieldClass} />
+                  <input type="time" name="endTime" value={form.endTime} onChange={handleChange} className={dateTimeFieldClass} />
                   <input
                     name="venueLocation"
                     value={form.venueLocation}
                     onChange={handleChange}
                     placeholder="Venue location"
-                    className="sm:col-span-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
+                    className={`sm:col-span-2 ${fieldClass}`}
                   />
                 </div>
               </section>
 
               <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Registration</h2>
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="date"
-                    name="registrationLastDate"
-                    value={form.registrationLastDate}
-                    onChange={handleChange}
-                    className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    name="maxParticipants"
-                    value={form.maxParticipants}
-                    onChange={handleChange}
-                    placeholder="Max participants"
-                    className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    name="registrationFee"
-                    value={form.registrationFee}
-                    onChange={handleChange}
-                    placeholder="Fee"
-                    className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
-                  />
-                  <select
-                    name="eventMode"
-                    value={form.eventMode}
-                    onChange={handleChange}
-                    className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
-                  >
-                    <option value="INDIVIDUAL">Individual Event</option>
-                    <option value="TEAM">Team Event</option>
-                  </select>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Registration Setup</h2>
+                  <span className="rounded-full bg-indigo-100 dark:bg-indigo-500/20 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                    {form.eventMode === "TEAM" ? "Team Event" : "Individual Event"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                  Define how students can register, how many seats are available, and whether the event is paid.
+                </p>
+
+                <div className="mt-3 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300">
+                  Keep registration last date on or before event start date. Team size rules apply only when participation format is set to Team Event.
                 </div>
 
-                {form.eventMode === "TEAM" && (
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Registration Last Date</span>
+                    <input
+                      type="date"
+                      name="registrationLastDate"
+                      value={form.registrationLastDate}
+                      onChange={handleChange}
+                      className={`mt-1 ${dateTimeFieldClass}`}
+                    />
+                    <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                      Students cannot register after this date.
+                    </span>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Maximum Participants</span>
                     <input
                       type="number"
                       min="1"
-                      name="minTeamSize"
-                      value={form.minTeamSize}
+                      name="maxParticipants"
+                      value={form.maxParticipants}
                       onChange={handleChange}
-                      placeholder="Min team size"
-                      className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
+                      placeholder="e.g. 100"
+                      className={`mt-1 ${fieldClass}`}
                     />
-                    <input
-                      type="number"
-                      min="2"
-                      name="maxTeamSize"
-                      value={form.maxTeamSize}
+                    <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                      Total seats available for this event.
+                    </span>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Registration Fee (INR)</span>
+                    <div className="relative mt-1">
+                      <span className="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center text-sm text-slate-500 dark:text-slate-400">
+                        Rs
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        name="registrationFee"
+                        value={form.registrationFee}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        className={prefixedFieldClass}
+                      />
+                    </div>
+                    <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                      Keep 0 for free registration.
+                    </span>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Participation Format</span>
+                    <select
+                      name="eventMode"
+                      value={form.eventMode}
                       onChange={handleChange}
-                      placeholder="Max team size"
-                      className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm"
-                    />
+                      className={`mt-1 ${fieldClass}`}
+                    >
+                      <option value="INDIVIDUAL">Individual Event</option>
+                      <option value="TEAM">Team Event</option>
+                    </select>
+                    <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                      Choose Team Event if students register as teams.
+                    </span>
+                  </label>
+                </div>
+
+                {form.eventMode === "TEAM" && (
+                  <div className="mt-3 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-3">
+                    <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Team Size Rules</p>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Minimum Team Size</span>
+                        <input
+                          type="number"
+                          min="1"
+                          name="minTeamSize"
+                          value={form.minTeamSize}
+                          onChange={handleChange}
+                          placeholder="e.g. 2"
+                          className={`mt-1 ${fieldClass}`}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Maximum Team Size</span>
+                        <input
+                          type="number"
+                          min="2"
+                          name="maxTeamSize"
+                          value={form.maxTeamSize}
+                          onChange={handleChange}
+                          placeholder="e.g. 4"
+                          className={`mt-1 ${fieldClass}`}
+                        />
+                      </label>
+                    </div>
                   </div>
                 )}
 
-                <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <label className="mt-3 flex items-start gap-3 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
                     name="registrationOpen"
                     checked={form.registrationOpen}
                     onChange={handleChange}
-                    className="h-4 w-4"
+                    className="mt-0.5 h-4 w-4 accent-indigo-600 dark:accent-indigo-400"
                   />
-                  Open registration immediately
+                  <span>
+                    <span className="block font-semibold text-slate-800 dark:text-slate-100">Open registration immediately</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                      {form.registrationOpen
+                        ? "Students can register as soon as the event is published."
+                        : "Registration will remain closed after publishing until enabled later."}
+                    </span>
+                  </span>
                 </label>
               </section>
             </div>

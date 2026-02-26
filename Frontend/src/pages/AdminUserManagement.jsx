@@ -30,6 +30,11 @@ const getInitials = (value) =>
     .toUpperCase();
 
 const formatText = (value) => {
+  if (value && typeof value === "object") {
+    if (value._id) return String(value._id).trim() || "N/A";
+    if (value.id) return String(value.id).trim() || "N/A";
+    return "N/A";
+  }
   const next = String(value ?? "").trim();
   return next || "N/A";
 };
@@ -307,7 +312,7 @@ export default function AdminUserManagement() {
                           <AvatarWithFrame
                             src={user.avatar || ""}
                             alt={user.fullName || "User"}
-                            frame={user?.profilePreferences?.avatarFrame}
+                            frame="NONE"
                             className="h-8 w-8 shrink-0"
                             coreClassName="h-full w-full border border-slate-200 dark:border-white/10 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 flex items-center justify-center text-xs font-semibold"
                             fallback={<span>{getInitials(user.fullName || "U")}</span>}
@@ -378,7 +383,7 @@ export default function AdminUserManagement() {
                 <AvatarWithFrame
                   src={profileUser.avatar || ""}
                   alt={profileUser.fullName || "User"}
-                  frame={profileUser?.profilePreferences?.avatarFrame}
+                  frame="NONE"
                   className="h-12 w-12 shrink-0"
                   coreClassName="h-full w-full border border-slate-200 dark:border-white/10 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 flex items-center justify-center text-base font-semibold"
                   fallback={<span>{getInitials(profileUser.fullName || "U")}</span>}
@@ -417,9 +422,9 @@ export default function AdminUserManagement() {
                   </p>
                 </article>
                 <article className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Avatar Frame</p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Created By</p>
                   <p className="mt-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
-                    {formatText(profileUser?.profilePreferences?.avatarFrame)}
+                    {formatText(profileUser?.createdBy)}
                   </p>
                 </article>
               </section>
@@ -445,10 +450,10 @@ export default function AdminUserManagement() {
                 </article>
 
                 <article className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-4 space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Coordinator Profile</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold text-slate-800 dark:text-slate-100">Assigned Event ID:</span> {formatText(profileUser?.coordinatorProfile?.assignedEventId)}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold text-slate-800 dark:text-slate-100">Scope:</span> {formatText(profileUser?.coordinatorProfile?.scope)}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold text-slate-800 dark:text-slate-100">Status:</span> {formatText(profileUser?.coordinatorProfile?.status)}</p>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Account Metadata</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold text-slate-800 dark:text-slate-100">Created By:</span> {formatText(profileUser?.createdBy)}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold text-slate-800 dark:text-slate-100">Role Key:</span> {formatText(profileUser?.role)}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold text-slate-800 dark:text-slate-100">User ID:</span> {formatText(profileUser?._id)}</p>
                 </article>
               </section>
 

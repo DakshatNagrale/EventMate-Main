@@ -11,7 +11,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import AvatarWithFrame from './AvatarWithFrame';
-import { normalizeAvatarFrame } from '../constants/profileCustomization';
+import { DEFAULT_AVATAR_FRAME } from '../constants/profileCustomization';
 
 const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
   const isStudent = user?.role === "STUDENT";
   const displayName = user?.fullName || user?.name || 'Student';
   const avatarUrl = user?.avatar || "";
-  const avatarFrame = normalizeAvatarFrame(user?.profilePreferences?.avatarFrame);
+  const avatarFrame = DEFAULT_AVATAR_FRAME;
   const avatarText = displayName.charAt(0).toUpperCase();
   const isDark = theme === "dark";
   const themeToggleClass =

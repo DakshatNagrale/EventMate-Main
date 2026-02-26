@@ -1,251 +1,343 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, CalendarDays, Loader2, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import api from "../lib/api";
-import SummaryApi from "../api/SummaryApi";
-import { mapApiEventToCard } from "../data/studentEventApiData";
-import { extractEventList } from "../lib/backendAdapters";
-import { fetchRegisteredEventIds } from "../lib/registrationApi";
+import { ArrowLeft, Calendar, CalendarDays, Loader2, MapPin, Search } from "lucide-react";
+import { fetchMyRegistrations } from "../lib/registrationApi";
 
-const statusStyles = {
-  current: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
-  upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  completed: "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200",
+const FALLBACK_BANNER =
+  "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80";
+
+const formatDate = (value) => {
+  if (!value) return "Date TBD";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Date TBD";
+  return parsed.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 };
 
-const statusLabel = {
-  current: "Live",
-  upcoming: "Upcoming",
-  completed: "Completed",
+const formatMonthDay = (value) => {
+  if (!value) return { month: "TBD", day: "--" };
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return { month: "TBD", day: "--" };
+  return {
+    month: parsed.toLocaleDateString([], { month: "short" }),
+    day: parsed.toLocaleDateString([], { day: "2-digit" }),
+  };
 };
 
-const statusRank = {
-  current: 0,
-  upcoming: 1,
-  completed: 2,
+const formatTimeRange = (start, end) => {
+  const startText = String(start || "").trim();
+  const endText = String(end || "").trim();
+  if (startText && endText) return `${startText} - ${endText}`;
+  if (startText) return startText;
+  if (endText) return endText;
+  return "Time TBD";
 };
 
-const getDateValue = (value) => {
-  const parsed = new Date(value || "");
-  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+const normalizeStatus = (value) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "Pending";
+  return normalized.replace(/([a-z])([A-Z])/g, "$1 $2");
 };
 
-const EventCard = ({ event, onRegister, onViewDetails }) => (
-  <div className="eventmate-panel bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col h-full">
-    <div className="h-40 overflow-hidden relative">
-      <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover" />
-      <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-bold shadow-sm ${statusStyles[event.status] || statusStyles.upcoming}`}>
-        {statusLabel[event.status] || "Upcoming"}
+const deriveEventPhase = (registration) => {
+  const explicitStatus = String(registration?.eventStatus || "").trim();
+  if (explicitStatus === "Completed" || explicitStatus === "Cancelled") return "completed";
+
+  const dateValue = new Date(registration?.eventStartDate || 0).getTime();
+  if (Number.isNaN(dateValue)) return "upcoming";
+  return Date.now() > dateValue ? "completed" : "upcoming";
+};
+
+const mapToUiRow = (registration) => {
+  const phase = deriveEventPhase(registration);
+  const registrationStatus = normalizeStatus(registration?.status);
+  const attendanceMarked = Boolean(registration?.qr?.attendanceMarked);
+
+  const primaryLabel = attendanceMarked
+    ? "Attended"
+    : registrationStatus === "Confirmed"
+      ? "Registered"
+      : registrationStatus;
+
+  const primaryLabelClass = attendanceMarked
+    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+    : registrationStatus === "Confirmed"
+      ? "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"
+      : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300";
+
+  return {
+    ...registration,
+    phase,
+    registrationStatus,
+    primaryLabel,
+    primaryLabelClass,
+    hasQr: Boolean(registration?.qr?.qrImageUrl),
+    monthDay: formatMonthDay(registration?.eventStartDate),
+  };
+};
+
+const MyEventCard = ({ row, onViewQr, onViewDetails }) => (
+  <article className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-900 p-3 sm:p-4">
+    <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-4">
+      <div className="relative h-28 sm:h-28 overflow-hidden rounded-xl">
+        <img
+          src={row.eventPosterUrl || FALLBACK_BANNER}
+          alt={row.eventTitle || "Event"}
+          className="h-full w-full object-cover"
+        />
+        <div className="absolute left-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-center text-[10px] font-semibold text-slate-700 shadow-sm">
+          <p>{row.monthDay.month}</p>
+          <p className="text-sm leading-none">{row.monthDay.day}</p>
+        </div>
       </div>
-      <div className="absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-semibold bg-white/90 dark:bg-gray-900/80">
-        {event.isFree ? "Free" : `Rs ${event.price}`}
+
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${row.primaryLabelClass}`}>
+            {row.primaryLabel}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
+            {row.eventCategory || "Event"}
+          </span>
+          {row.hasQr ? (
+            <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+              QR Ready
+            </span>
+          ) : (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+              QR Pending
+            </span>
+          )}
+        </div>
+
+        <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{row.eventTitle || "Registered Event"}</h3>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+          <p className="inline-flex items-center gap-1.5">
+            <CalendarDays size={12} className="text-emerald-500" />
+            {formatDate(row.eventStartDate)} | {formatTimeRange(row.eventStartTime, row.eventEndTime)}
+          </p>
+          <p className="inline-flex items-center gap-1.5">
+            <MapPin size={12} className="text-indigo-500" />
+            {row.eventLocation || "Venue TBD"}
+          </p>
+        </div>
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+          Registration status: <span className="font-semibold">{row.registrationStatus}</span>.{" "}
+          {row.qr?.attendanceMarked
+            ? "Attendance has been marked for this event."
+            : "Use your QR code at check-in when the event starts."}
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 dark:border-white/10">
+          <button
+            type="button"
+            onClick={() => onViewQr(row.id)}
+            disabled={!row.hasQr}
+            className="rounded-lg border border-indigo-300 px-4 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-400/40 dark:text-indigo-200 dark:hover:bg-indigo-500/15"
+          >
+            {row.hasQr ? "View QR" : "QR Pending"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onViewDetails(row.eventId)}
+            disabled={!row.eventId}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            View Details
+          </button>
+        </div>
       </div>
     </div>
-
-    <div className="p-5 flex flex-col flex-grow">
-      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{event.title}</h3>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{event.type}</p>
-      <div className="space-y-2 mb-6 text-sm text-gray-600 dark:text-gray-300">
-        <div className="flex items-center gap-2">
-          <CalendarDays size={16} className="text-indigo-500 dark:text-indigo-300" />
-          <span>{event.date} | {event.time}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <MapPin size={16} className="text-indigo-500 dark:text-indigo-300" />
-          <span>{event.venue}</span>
-        </div>
-      </div>
-
-      <div className="mt-auto grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => onRegister(event.id)}
-          disabled={event.isRegistered || !event.registrationOpen}
-          className="w-full py-2.5 rounded-lg border border-indigo-300 dark:border-indigo-400/50 text-indigo-700 dark:text-indigo-200 font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-500/15 disabled:opacity-60 transition"
-        >
-          {event.isRegistered ? "Registered" : event.registrationOpen ? "Registration Form" : "Closed"}
-        </button>
-        <button
-          type="button"
-          onClick={() => onViewDetails(event.id)}
-          className="w-full py-2.5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition"
-        >
-          View Details
-        </button>
-      </div>
-    </div>
-  </div>
+  </article>
 );
 
 export default function StudentMyEvents() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("available");
-  const [allEvents, setAllEvents] = useState([]);
-  const [registeredEvents, setRegisteredEvents] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [registrationWarning, setRegistrationWarning] = useState(null);
-
-  const fetchEvents = async () => {
-    setLoading(true);
-    setError(null);
-    setRegistrationWarning(null);
-    try {
-      const publicResponse = await api({ ...SummaryApi.get_public_events });
-      const registrationInfo = await fetchRegisteredEventIds();
-      const registeredIds = registrationInfo.ids;
-      setRegistrationWarning(registrationInfo.warning);
-      const publicEvents = extractEventList(publicResponse.data);
-
-      const allMapped = publicEvents
-        .map((event) => mapApiEventToCard(event, { registeredIds }))
-        .sort((a, b) => {
-          const rankDiff = (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
-          if (rankDiff !== 0) return rankDiff;
-          return getDateValue(a.startDate) - getDateValue(b.startDate);
-        });
-
-      const registeredMapped = allMapped
-        .filter((event) => registeredIds.has(String(event.id)))
-        .sort((a, b) => getDateValue(b.startDate) - getDateValue(a.startDate));
-
-      setAllEvents(allMapped);
-      setRegisteredEvents(registeredMapped);
-    } catch (err) {
-      setError(err.response?.data?.message || "Unable to load events.");
-      setAllEvents([]);
-      setRegisteredEvents([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [warning, setWarning] = useState(null);
 
   useEffect(() => {
-    fetchEvents();
+    const loadMyEvents = async () => {
+      setLoading(true);
+      setError(null);
+      setWarning(null);
+      try {
+        const response = await fetchMyRegistrations();
+        setWarning(response.warning);
+        const nextRows = response.rows
+          .map(mapToUiRow)
+          .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        setRows(nextRows);
+      } catch (fetchError) {
+        setError(fetchError?.response?.data?.message || "Unable to load your registrations.");
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadMyEvents();
   }, []);
 
-  const goToEventDetails = (eventId) => {
+  const filteredRows = useMemo(() => {
+    const term = String(searchTerm || "").trim().toLowerCase();
+    let next = rows;
+
+    if (activeTab === "upcoming") {
+      next = next.filter((row) => row.phase === "upcoming");
+    } else if (activeTab === "completed") {
+      next = next.filter((row) => row.phase === "completed");
+    }
+
+    if (!term) return next;
+    return next.filter((row) => {
+      return (
+        String(row.eventTitle || "").toLowerCase().includes(term) ||
+        String(row.eventCategory || "").toLowerCase().includes(term) ||
+        String(row.eventLocation || "").toLowerCase().includes(term)
+      );
+    });
+  }, [activeTab, rows, searchTerm]);
+
+  const tabCounts = useMemo(() => {
+    const upcoming = rows.filter((row) => row.phase === "upcoming").length;
+    const completed = rows.filter((row) => row.phase === "completed").length;
+    return {
+      all: rows.length,
+      upcoming,
+      completed,
+    };
+  }, [rows]);
+
+  const openQr = (registrationId) => {
+    const normalizedId = String(registrationId || "").trim();
+    if (!normalizedId) return;
+    navigate(`/student-dashboard/my-events/qr/${encodeURIComponent(normalizedId)}`);
+  };
+
+  const openEventDetails = (eventId) => {
     const normalizedId = String(eventId || "").trim();
     if (!normalizedId) return;
     navigate(`/student-dashboard/events/${encodeURIComponent(normalizedId)}`);
   };
 
-  const goToEventRegistration = (eventId) => {
-    const normalizedId = String(eventId || "").trim();
-    if (!normalizedId) return;
-    navigate(`/student-dashboard/events/${encodeURIComponent(normalizedId)}/register`);
-  };
-
-  const handleRegister = (eventId) => {
-    goToEventRegistration(eventId);
-  };
-
-  const activeEvents = useMemo(
-    () => registeredEvents.filter((event) => event.status === "upcoming" || event.status === "current"),
-    [registeredEvents]
-  );
-
-  const completedEvents = useMemo(
-    () => registeredEvents.filter((event) => event.status === "completed"),
-    [registeredEvents]
-  );
-
-  const displayedEvents = activeTab === "available" ? allEvents : registeredEvents;
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-gray-900 dark:text-gray-100">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">My Events</h1>
-        <p className="text-gray-600 dark:text-gray-300">
-          Organizer-created events are loaded from database. Register and view details from here.
-        </p>
-      </div>
+      <button
+        type="button"
+        onClick={() => navigate("/student-dashboard")}
+        className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-indigo-600 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-indigo-300"
+      >
+        <ArrowLeft size={16} />
+      </button>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="eventmate-kpi rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">All Events</p>
-          <p className="mt-2 text-2xl font-bold">{allEvents.length}</p>
-        </div>
-        <div className="eventmate-kpi rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-500/20 p-4">
-          <p className="text-sm text-indigo-700 dark:text-indigo-300">Registered</p>
-          <p className="mt-2 text-2xl font-bold text-indigo-700 dark:text-indigo-300">{registeredEvents.length}</p>
-        </div>
-        <div className="eventmate-kpi rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-500/20 p-4">
-          <p className="text-sm text-green-700 dark:text-green-300">Active</p>
-          <p className="mt-2 text-2xl font-bold text-green-700 dark:text-green-300">{activeEvents.length}</p>
-        </div>
-        <div className="eventmate-kpi rounded-xl bg-gray-100 dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600 p-4">
-          <p className="text-sm text-gray-700 dark:text-gray-200">Completed</p>
-          <p className="mt-2 text-2xl font-bold text-gray-700 dark:text-gray-200">{completedEvents.length}</p>
-        </div>
-      </div>
+      <section className="mt-4 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Events</h1>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+              Manage your registrations, attendance, and QR passes.
+            </p>
+          </div>
 
-      <div className="flex gap-5 mb-8 border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => setActiveTab("available")}
-          className={`pb-4 px-1 text-sm font-semibold transition-colors ${
-            activeTab === "available"
-              ? "text-indigo-600 dark:text-indigo-300 border-b-2 border-indigo-600 dark:border-indigo-300"
-              : "text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 border-b-2 border-transparent"
-          }`}
-        >
-          Available ({allEvents.length})
-        </button>
-        <button
-          onClick={() => setActiveTab("registered")}
-          className={`pb-4 px-1 text-sm font-semibold transition-colors ${
-            activeTab === "registered"
-              ? "text-indigo-600 dark:text-indigo-300 border-b-2 border-indigo-600 dark:border-indigo-300"
-              : "text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 border-b-2 border-transparent"
-          }`}
-        >
-          Registered ({registeredEvents.length})
-        </button>
-      </div>
-
-      {loading && (
-        <p className="text-sm text-gray-500 dark:text-gray-300 inline-flex items-center gap-2">
-          <Loader2 size={14} className="animate-spin" />
-          Loading events...
-        </p>
-      )}
-
-      {error && !loading && (
-        <div className="eventmate-kpi text-center py-10 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-red-300 dark:border-red-500/30 text-red-600 dark:text-red-300">
-          {error}
-        </div>
-      )}
-
-      {registrationWarning && !loading && !error && (
-        <div className="eventmate-kpi text-center py-4 bg-amber-50 dark:bg-amber-500/15 rounded-2xl border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200">
-          {registrationWarning}
-        </div>
-      )}
-
-      {!loading && !error && displayedEvents.length > 0 && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayedEvents.map((event) => (
-            <EventCard
-              key={event.id}
-              event={event}
-              onRegister={handleRegister}
-              onViewDetails={goToEventDetails}
+          <label className="relative sm:w-64">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search events..."
+              className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-100"
             />
-          ))}
+          </label>
         </div>
-      )}
 
-      {!loading && !error && displayedEvents.length === 0 && (
-        <div className="eventmate-kpi text-center py-16 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
-          <Calendar className="mx-auto text-gray-300 dark:text-gray-500 mb-4" size={48} />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">No events found</h3>
-          <p className="text-gray-500 dark:text-gray-300">
-            {activeTab === "available"
-              ? "No organizer events are available right now."
-              : "You have not registered for any event yet."}
-          </p>
+        <div className="mt-6 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("all")}
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${
+              activeTab === "all"
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-slate-600 border border-slate-200 dark:bg-white/5 dark:text-slate-300 dark:border-white/10"
+            }`}
+          >
+            All Events
+            <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] text-slate-700">
+              {tabCounts.all}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("upcoming")}
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${
+              activeTab === "upcoming"
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-slate-600 border border-slate-200 dark:bg-white/5 dark:text-slate-300 dark:border-white/10"
+            }`}
+          >
+            Upcoming
+            <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] text-slate-700">
+              {tabCounts.upcoming}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("completed")}
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${
+              activeTab === "completed"
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-slate-600 border border-slate-200 dark:bg-white/5 dark:text-slate-300 dark:border-white/10"
+            }`}
+          >
+            Completed
+            <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] text-slate-700">
+              {tabCounts.completed}
+            </span>
+          </button>
         </div>
-      )}
+
+        {warning && (
+          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200">
+            {warning}
+          </p>
+        )}
+
+        {loading ? (
+          <p className="mt-6 inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+            <Loader2 size={14} className="animate-spin" />
+            Loading your events...
+          </p>
+        ) : error ? (
+          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300">
+            {error}
+          </div>
+        ) : filteredRows.length > 0 ? (
+          <div className="mt-6 border-l-2 border-indigo-300/70 pl-4 space-y-4">
+            {filteredRows.map((row) => (
+              <MyEventCard
+                key={row.id || `${row.eventId}-${row.createdAt || "row"}`}
+                row={row}
+                onViewQr={openQr}
+                onViewDetails={openEventDetails}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-8 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-10 text-center">
+            <Calendar className="mx-auto text-gray-300 dark:text-gray-500 mb-3" size={44} />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">No events found</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
+              {rows.length === 0
+                ? "You have not registered for any events yet."
+                : "No events match the current filter/search."}
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

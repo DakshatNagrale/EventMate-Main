@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+const CONTACT_API_NOTICE =
+  "Contact message API is not available in this backend build. Please use support@eventmate.com.";
 export default function ContactUs() {
   const [formData, setFormData] = useState({
     name: "",
@@ -31,35 +33,8 @@ export default function ContactUs() {
     }
 
     setIsLoading(true);
-    setStatus({ type: "", message: "" });
-
-    try {
-      // 🔗 BACKEND INTEGRATION POINT
-      /*
-      const response = await fetch('YOUR_API_ENDPOINT_HERE', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      if (!response.ok) throw new Error('Failed to send');
-      */
-
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulation
-
-      setStatus({
-        type: "success",
-        message: "Message sent successfully! We'll be in touch soon.",
-      });
-      setFormData({ name: "", email: "", message: "" });
-    } catch (error) {
-      console.error(error);
-      setStatus({
-        type: "error",
-        message: "Something went wrong. Please try again later.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    setStatus({ type: "error", message: CONTACT_API_NOTICE });
+    setIsLoading(false);
   };
 
   return (

@@ -1,4 +1,6 @@
-export const baseURL = import.meta.env.VITE_API_URL || "http://localhost:5000"; // EventMate backend
+import { API_BASE_URL } from "../lib/backendUrl";
+
+export const baseURL = API_BASE_URL;
 
 const SummaryApi = {
   /* ================= AUTH ================= */
@@ -65,7 +67,7 @@ const SummaryApi = {
   },
 
   get_my_events: {
-    url: "/api/events",
+    url: "/api/events/mine",
     method: "get",
   },
 
@@ -106,21 +108,6 @@ const SummaryApi = {
 
   get_organizer_coordinator_activity: {
     url: "/api/admin/users",
-    method: "get",
-  },
-
-  get_coordinator_event_registrations: {
-    url: "/api/registrations/coordinator",
-    method: "get",
-  },
-
-  send_contact_admin: {
-    url: "/api/user/contact-admin",
-    method: "post",
-  },
-
-  get_my_contact_messages: {
-    url: "/api/user/contact-admin",
     method: "get",
   },
 
@@ -178,26 +165,6 @@ const SummaryApi = {
   delete_coordinator: {
     url: "/api/admin/users/:id",
     method: "delete",
-  },
-
-  get_admin_contact_messages: {
-    url: "/api/admin/contact-messages",
-    method: "get",
-  },
-
-  get_admin_unread_contact_count: {
-    url: "/api/admin/contact-messages/unread-count",
-    method: "get",
-  },
-
-  mark_admin_contact_message_read: {
-    url: "/api/admin/contact-messages/:id/read",
-    method: "patch",
-  },
-
-  mark_all_admin_contact_messages_read: {
-    url: "/api/admin/contact-messages/read-all",
-    method: "patch",
   },
 };
 
