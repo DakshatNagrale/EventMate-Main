@@ -2,7 +2,7 @@ import express from "express";
 import authMiddleware from "../middleware/auth.middleware.js";
 import roleMiddleware from "../middleware/role.middleware.js";
 import upload from "../middleware/multer.middleware.js";
-import { createEventController,publishEvent, getPublishedEvents, cancelEvent, completeEvent, updateEvent, getEvent, assignCoordinator } from "../controllers/event.controller.js";
+import { createEventController,publishEvent, getPublishedEvents, cancelEvent, completeEvent, updateEvent, getEvent, assignCoordinator, getMyEvents } from "../controllers/event.controller.js";
 
 const router = express.Router();
 
@@ -12,6 +12,13 @@ router.post(
   roleMiddleware("MAIN_ADMIN", "ORGANIZER"),
   upload.single("poster"),
   createEventController
+);
+
+router.get(
+  "/myEvents",
+  authMiddleware,
+  roleMiddleware("MAIN_ADMIN", "ORGANIZER"),
+  getMyEvents
 );
 
 router.patch(

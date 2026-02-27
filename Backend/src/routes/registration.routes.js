@@ -7,7 +7,8 @@ import {
   getMyRegistrations,
   getEventRegistrations,
   markAttendanceManual,
-  markAttendance
+  markAttendance,
+  tagWinner
 } from "../controllers/registration.controller.js";
 
 const router = express.Router();
@@ -43,6 +44,14 @@ router.patch(
   authMiddleware,
   roleMiddleware("MAIN_ADMIN"),
   markAttendanceManual
+);
+
+// Tag winner — organizer or admin only
+router.patch(
+  "/:registrationId/winner",
+  authMiddleware,
+  roleMiddleware("MAIN_ADMIN", "ORGANIZER"),
+  tagWinner
 );
 
 export default router;

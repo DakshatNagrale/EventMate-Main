@@ -96,3 +96,21 @@ export const markAttendanceManual = async (req, res, next) => {
     next(error);
   }
 };
+
+// Tag winner
+export const tagWinner = async (req, res, next) => {
+  try {
+    const result = await registrationService.tagWinner(
+      req.params.registrationId,
+      req.body.position,
+      req.user
+    );
+    return res.status(200).json({
+      success: true,
+      message: `${result.position} place assigned to ${result.name}`,
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -353,3 +353,75 @@ export const markAttendanceManual = async (registrationId, email, adminId) => {
     markedAt: qr.attendanceMarkedAt
   };
 };
+
+/* ================================================
+   TAG WINNER
+   Organizer/Admin tags a registration as winner
+================================================ */
+
+export const tagWinner = async (registrationId, position, taggedBy) => {
+
+  const validPositions = ["1st", "2nd", "3rd"];
+  if (!validPositions.includes(position))
+    throw new Error("Position must be 1st, 2nd or 3rd");
+
+  // Find registration
+  const registration = await EventRegistration.findById(registrationId);
+  if (!registration) throw new Error("Registration not found");
+
+  // Find event
+  const event = await Event.findById(registration.event);
+  if (!event) throw new Error("Event not found");
+
+  // Event must not be cancelled
+  if (event.status === "Cancelled")
+    throw new Error("Cannot tag winners for a cancelled event");
+
+  // Event must have started
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const eventStart = new Date(event.schedule.startDate);
+  eventStart.setHours(0, 0, 0, 0);
+
+  if (today < eventStart)
+    throw new Error("Cannot tag winners before event starts");
+
+  // Authorization — only organizer of this event or admin
+  const isAdmin = taggedBy.role === "MAIN_ADMIN";
+  const isOrganizer =
+    event.createdBy.toString() === taggedBy._id.toString();
+
+  if (!isAdmin && !isOrganizer)
+    throw new Error("Not authorized to tag winners for this event");
+
+  // Registration must be confirmed
+  if (registration.status !== "Confirmed")
+    throw new Error("Only confirmed registrations can be tagged as winners");
+
+  // Check if this position already taken
+  const positionTaken = await EventRegistration.findOne({
+    event: event._id,
+    "winner.position": position
+  });
+
+  if (positionTaken)
+    throw new Error(`${position} place already assigned to another team/participant`);
+
+  // Check if this registration already has a position
+  if (registration.winner.isWinner)
+    throw new Error(`This team/participant is already tagged as ${registration.winner.position} place`);
+
+  // Tag winner
+  registration.winner.isWinner = true;
+  registration.winner.position = position;
+  await registration.save();
+
+  return {
+    position,
+    name: event.isTeamEvent
+      ? registration.teamName
+      : registration.teamLeader.name,
+    isTeam: event.isTeamEvent,
+    eventName: event.title
+  };
+};

@@ -119,6 +119,19 @@ const EventRegistrationSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+  
+  // Winner tagging
+winner: {
+  isWinner: {
+    type: Boolean,
+    default: false
+  },
+  position: {
+    type: String,
+    enum: ["1st", "2nd", "3rd"],
+    default: null
+  }
+},
 
     registeredBy: {
       type: mongoose.Schema.Types.ObjectId,

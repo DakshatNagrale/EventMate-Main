@@ -111,7 +111,6 @@ export const publishEvent = async (req, res, next) => {
 };
 
 //getPublishedEvents
-
 export const getPublishedEvents = async (req, res, next) => {
   try {
     
@@ -380,6 +379,23 @@ export const assignCoordinator = async (req, res, next) => {
       data: event.studentCoordinators
     });
 
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// Organizer sees their own events (all statuses)
+export const getMyEvents = async (req, res, next) => {
+  try {
+    const events = await Event.find({ createdBy: req.user._id })
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: events.length,
+      data: events
+    });
   } catch (error) {
     next(error);
   }
