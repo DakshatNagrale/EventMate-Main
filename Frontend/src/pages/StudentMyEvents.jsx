@@ -249,7 +249,8 @@ export default function StudentMyEvents() {
               type="text"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search events..."
+              placeholder="Search my events..."
+              aria-label="Search my events"
               className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-100"
             />
           </label>

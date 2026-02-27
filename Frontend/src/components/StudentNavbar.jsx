@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Search, 
   Bell, 
   Menu, 
   X, 
@@ -123,20 +122,8 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
             </div>
           </div>
 
-          {/* --- RIGHT SIDE: Search, Notifications, User --- */}
+          {/* --- RIGHT SIDE: Notifications, User --- */}
           <div className="hidden sm:ml-6 sm:flex sm:items-center gap-4">
-            
-            {/* Search Bar */}
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400 group-focus-within:text-purple-600 dark:text-gray-500 dark:group-focus-within:text-indigo-300 transition-colors" />
-              </div>
-              <input 
-                type="text" 
-                className="block w-48 lg:w-64 pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-full leading-5 bg-gray-50 dark:bg-gray-800/70 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:bg-white dark:focus:bg-gray-800 focus:ring-1 focus:ring-purple-500 dark:focus:ring-indigo-400 focus:border-purple-500 dark:focus:border-indigo-400 sm:text-sm transition-all duration-200" 
-                placeholder="Search events..."
-              />
-            </div>
 
             {/* Notifications Bell */}
             <button className="p-1 rounded-full text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-indigo-300 focus:outline-none relative">

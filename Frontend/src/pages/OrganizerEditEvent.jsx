@@ -201,8 +201,8 @@ export default function OrganizerEditEvent() {
     setMessage(null);
     try {
       const response = await api({
-        url: `/api/events/${eventId}/publish`,
-        method: "patch",
+        ...SummaryApi.publish_event,
+        url: SummaryApi.publish_event.url.replace(":eventId", eventId),
       });
       setMessage({ type: "success", text: response.data?.message || "Event published successfully." });
       await loadEvent();

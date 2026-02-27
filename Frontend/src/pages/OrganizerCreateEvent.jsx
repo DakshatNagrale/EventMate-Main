@@ -166,8 +166,8 @@ export default function OrganizerCreateEvent() {
 
       if (publish && createdEventId) {
         await api({
-          url: `/api/events/${createdEventId}/publish`,
-          method: "patch",
+          ...SummaryApi.publish_event,
+          url: SummaryApi.publish_event.url.replace(":eventId", createdEventId),
         });
       }
 

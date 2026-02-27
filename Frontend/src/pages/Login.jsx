@@ -92,7 +92,7 @@ export default function Login() {
   const isValid = Object.values(data).every((el) => el);
 
   return (
-    <section className="relative min-h-[calc(100vh-72px)] overflow-hidden bg-gradient-to-br from-slate-100 via-indigo-50 to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <section className="eventmate-page relative min-h-[calc(100vh-72px)] overflow-hidden bg-gradient-to-br from-slate-100 via-indigo-50 to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgba(79,70,229,0.18)_0.45px,transparent_0.45px)] opacity-[0.08] [background-size:18px_18px] dark:opacity-[0.16]" />
       <div className="pointer-events-none absolute -top-20 -left-20 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
       <div className="pointer-events-none absolute top-10 right-0 h-72 w-72 rounded-full bg-blue-500/15 blur-3xl" />

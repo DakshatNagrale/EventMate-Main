@@ -67,7 +67,7 @@ const SummaryApi = {
   },
 
   get_my_events: {
-    url: "/api/events/mine",
+    url: "/api/events/myEvents",
     method: "get",
   },
 
@@ -86,9 +86,39 @@ const SummaryApi = {
     method: "get",
   },
 
+  publish_event: {
+    url: "/api/events/:eventId/publish",
+    method: "patch",
+  },
+
+  cancel_event: {
+    url: "/api/events/:eventId/cancel",
+    method: "patch",
+  },
+
+  complete_event: {
+    url: "/api/events/:eventId/complete",
+    method: "patch",
+  },
+
   register_for_event: {
     url: "/api/registrations/:eventId/draft",
     method: "post",
+  },
+
+  assign_coordinator_to_event: {
+    url: "/api/events/:eventId/coordinators/assign",
+    method: "patch",
+  },
+
+  mark_attendance_by_token: {
+    url: "/api/registrations/attendance/:token",
+    method: "patch",
+  },
+
+  get_event_registrations: {
+    url: "/api/registrations/:eventId/all",
+    method: "get",
   },
 
   get_event_coordinators: {

@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { lazy, Suspense, useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion, useScroll, useSpring } from "framer-motion";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -64,6 +64,24 @@ const OrganizerCreateEvent = lazy(() =>
 const OrganizerEditEvent = lazy(() =>
   import("./pages/OrganizerEditEvent").catch(() => ({
     default: () => <div>Edit event loading...</div>,
+  }))
+);
+
+const OrganizerEventDetails = lazy(() =>
+  import("./pages/OrganizerEventDetails").catch(() => ({
+    default: () => <div>Event details loading...</div>,
+  }))
+);
+
+const OrganizerEventScanQR = lazy(() =>
+  import("./pages/OrganizerEventScanQR").catch(() => ({
+    default: () => <div>Scan QR loading...</div>,
+  }))
+);
+
+const OrganizerEventFeedback = lazy(() =>
+  import("./pages/OrganizerEventFeedback").catch(() => ({
+    default: () => <div>Feedback loading...</div>,
   }))
 );
 
@@ -139,6 +157,12 @@ const StudentContactUs = lazy(() =>
   }))
 );
 
+const StudentFeedbackPending = lazy(() =>
+  import("./pages/StudentFeedbackPending").catch(() => ({
+    default: () => <div>Feedback loading...</div>,
+  }))
+);
+
 const MyCertificates = lazy(() =>
   import("./pages/MyCertificates").catch(() => ({
     default: () => <div>Loading certificates...</div>,
@@ -155,6 +179,8 @@ const routeMotionTransition = {
   duration: 0.42,
   ease: [0.22, 1, 0.36, 1],
 };
+
+const clampPercentage = (value) => Math.max(0, Math.min(100, value));
 
 function ProtectedRoute({ children, requiredRole }) {
   const user = getStoredUser();
@@ -188,12 +214,103 @@ function AmbientBackdrop({ variant = "dashboard" }) {
   );
 }
 
+function ScrollProgressBeam() {
+  const prefersReducedMotion = useReducedMotion();
+  const { scrollYProgress } = useScroll();
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 170,
+    damping: 34,
+    mass: 0.18,
+  });
+
+  return (
+    <motion.div
+      aria-hidden="true"
+      className="eventmate-scroll-progress"
+      style={prefersReducedMotion ? { scaleX: 0 } : { scaleX: smoothProgress }}
+    />
+  );
+}
+
 function AnimatedOutlet() {
   const location = useLocation();
+  const routeShellRef = useRef(null);
+  const prefersReducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (prefersReducedMotion) return undefined;
+
+    const routeShell = routeShellRef.current;
+    if (!routeShell) return undefined;
+
+    const revealTargets = Array.from(
+      routeShell.querySelectorAll(".eventmate-panel, .eventmate-kpi, section, article, form, table")
+    ).filter((node) => !node.classList.contains("eventmate-reveal-static"));
+
+    revealTargets.forEach((node, index) => {
+      node.classList.add("eventmate-reveal-ready");
+      node.classList.remove("eventmate-reveal-visible");
+      node.style.setProperty("--eventmate-reveal-delay", `${Math.min(index, 14) * 28}ms`);
+    });
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("eventmate-reveal-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        threshold: 0.12,
+        rootMargin: "0px 0px -10% 0px",
+      }
+    );
+
+    revealTargets.forEach((node) => observer.observe(node));
+
+    return () => observer.disconnect();
+  }, [location.pathname, location.search, prefersReducedMotion]);
+
+  useEffect(() => {
+    if (prefersReducedMotion) return undefined;
+
+    const routeShell = routeShellRef.current;
+    if (!routeShell) return undefined;
+
+    routeShell.style.setProperty("--eventmate-pointer-alpha", "0");
+
+    const handlePointer = (event) => {
+      const bounds = routeShell.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      const pointerX = clampPercentage(((event.clientX - bounds.left) / bounds.width) * 100);
+      const pointerY = clampPercentage(((event.clientY - bounds.top) / bounds.height) * 100);
+
+      routeShell.style.setProperty("--eventmate-pointer-x", `${pointerX}%`);
+      routeShell.style.setProperty("--eventmate-pointer-y", `${pointerY}%`);
+      routeShell.style.setProperty("--eventmate-pointer-alpha", "1");
+    };
+
+    const handlePointerLeave = () => {
+      routeShell.style.setProperty("--eventmate-pointer-alpha", "0");
+    };
+
+    routeShell.addEventListener("pointermove", handlePointer);
+    routeShell.addEventListener("pointerenter", handlePointer);
+    routeShell.addEventListener("pointerleave", handlePointerLeave);
+
+    return () => {
+      routeShell.removeEventListener("pointermove", handlePointer);
+      routeShell.removeEventListener("pointerenter", handlePointer);
+      routeShell.removeEventListener("pointerleave", handlePointerLeave);
+    };
+  }, [location.pathname, location.search, prefersReducedMotion]);
 
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
+        ref={routeShellRef}
         key={`${location.pathname}${location.search}`}
         variants={routeMotionVariants}
         initial="initial"
@@ -202,6 +319,8 @@ function AnimatedOutlet() {
         transition={routeMotionTransition}
         className="eventmate-route-shell"
       >
+        <span className="eventmate-interaction-glow" aria-hidden="true" />
+        <span className="eventmate-interaction-grain" aria-hidden="true" />
         <Outlet />
       </motion.div>
     </AnimatePresence>
@@ -211,6 +330,7 @@ function AnimatedOutlet() {
 function MainLayout() {
   return (
     <div className="eventmate-app-shell eventmate-app-shell-public relative isolate flex min-h-screen flex-col overflow-x-hidden transition-colors duration-500">
+      <ScrollProgressBeam />
       <AmbientBackdrop variant="public" />
       <Navbar variant="public" />
       <main className="relative z-[1] flex-1">
@@ -241,6 +361,7 @@ function DashboardLayout() {
 
   return (
     <div className="eventmate-app-shell eventmate-app-shell-dashboard relative isolate flex min-h-screen flex-col overflow-x-hidden">
+      <ScrollProgressBeam />
       <AmbientBackdrop variant="dashboard" />
       {!hideTopNav && (
         <Navbar
@@ -356,6 +477,39 @@ export default function App() {
               <ProtectedRoute requiredRole="ORGANIZER">
                 <Suspense fallback={<div className="p-8 text-center">Loading Edit Event...</div>}>
                   <OrganizerEditEvent />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/organizer-dashboard/event/:eventId/details"
+            element={
+              <ProtectedRoute requiredRole="ORGANIZER">
+                <Suspense fallback={<div className="p-8 text-center">Loading Event Details...</div>}>
+                  <OrganizerEventDetails />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/organizer-dashboard/event/:eventId/scan-qr"
+            element={
+              <ProtectedRoute requiredRole="ORGANIZER">
+                <Suspense fallback={<div className="p-8 text-center">Loading Scan QR...</div>}>
+                  <OrganizerEventScanQR />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/organizer-dashboard/event/:eventId/feedback"
+            element={
+              <ProtectedRoute requiredRole="ORGANIZER">
+                <Suspense fallback={<div className="p-8 text-center">Loading Feedback...</div>}>
+                  <OrganizerEventFeedback />
                 </Suspense>
               </ProtectedRoute>
             }
@@ -497,6 +651,14 @@ export default function App() {
               element={
                 <Suspense fallback={<div className="p-8 text-center">Loading Contact...</div>}>
                   <StudentContactUs />
+                </Suspense>
+              }
+            />
+            <Route
+              path="feedback-pending"
+              element={
+                <Suspense fallback={<div className="p-8 text-center">Loading Feedback...</div>}>
+                  <StudentFeedbackPending />
                 </Suspense>
               }
             />

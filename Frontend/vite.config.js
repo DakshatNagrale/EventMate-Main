@@ -9,7 +9,6 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    envDir: backendEnvDir,
     define: {
       "import.meta.env.VITE_BACKEND_PORT": JSON.stringify(backendPort),
     },

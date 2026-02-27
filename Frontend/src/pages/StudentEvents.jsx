@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Loader2, MapPin } from "lucide-react";
+import { CalendarDays, Loader2, MapPin, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
@@ -93,6 +93,7 @@ const EventCard = ({ event, onRegister, onViewDetails }) => (
 export default function StudentEvents() {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [registrationWarning, setRegistrationWarning] = useState(null);
@@ -160,13 +161,40 @@ export default function StudentEvents() {
     [events]
   );
 
+  const filteredEvents = useMemo(() => {
+    const term = String(searchTerm || "").trim().toLowerCase();
+    if (!term) return events;
+
+    return events.filter((event) => {
+      return (
+        String(event.title || "").toLowerCase().includes(term) ||
+        String(event.type || "").toLowerCase().includes(term) ||
+        String(event.venue || "").toLowerCase().includes(term) ||
+        String(event.dept || "").toLowerCase().includes(term)
+      );
+    });
+  }, [events, searchTerm]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-gray-900 dark:text-gray-100">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">All Events</h1>
-        <p className="text-gray-600 dark:text-gray-300">
-          Events created by organizers are loaded from database.
-        </p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">All Events</h1>
+          <p className="text-gray-600 dark:text-gray-300">
+            Events created by organizers are loaded from database.
+          </p>
+        </div>
+        <label className="relative sm:w-72">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search events..."
+            aria-label="Search events"
+            className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-100"
+          />
+        </label>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -207,9 +235,9 @@ export default function StudentEvents() {
         </p>
       )}
 
-      {!loading && !error && events.length > 0 && (
+      {!loading && !error && filteredEvents.length > 0 && (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <EventCard
               key={event.id}
               event={event}
@@ -220,9 +248,11 @@ export default function StudentEvents() {
         </div>
       )}
 
-      {!loading && !error && events.length === 0 && (
+      {!loading && !error && filteredEvents.length === 0 && (
         <div className="eventmate-kpi rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center text-gray-500 dark:text-gray-300">
-          No events available right now.
+          {events.length === 0
+            ? "No events available right now."
+            : "No events match your search."}
         </div>
       )}
     </div>

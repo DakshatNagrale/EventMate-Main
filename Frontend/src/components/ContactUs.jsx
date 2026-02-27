@@ -38,7 +38,7 @@ export default function ContactUs() {
   };
 
   return (
-    <section className="relative py-20 px-4 sm:px-6 overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <section className="eventmate-page relative py-20 px-4 sm:px-6 overflow-hidden bg-gray-50 dark:bg-gray-900">
       
       {/* Background Decorative Gradients */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">

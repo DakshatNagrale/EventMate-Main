@@ -20,7 +20,7 @@ import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
 import { getStoredUser } from "../lib/auth";
 import { formatEventDate, mapApiEventToDetails } from "../data/studentEventApiData";
-import { extractEventItem } from "../lib/backendAdapters";
+import { extractEventItem, extractEventList } from "../lib/backendAdapters";
 import { fetchRegisteredEventIds } from "../lib/registrationApi";
 
 const registrationTypeLabels = {
@@ -66,6 +66,52 @@ const profileToParticipant = (profile) => ({
   year: String(profile?.year || "").trim(),
 });
 
+const normalizeId = (value) => String(value || "").trim();
+
+const getEventId = (event) =>
+  normalizeId(event?._id || event?.id || event?.eventId);
+
+const getRegistrationList = (payload) => {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.registrations)) return payload.registrations;
+  if (Array.isArray(payload?.data?.registrations)) return payload.data.registrations;
+  return [];
+};
+
+const findEventInPublicList = async (eventId) => {
+  const response = await api({ ...SummaryApi.get_public_events });
+  const normalizedEventId = normalizeId(eventId);
+  return (
+    extractEventList(response.data).find(
+      (eventItem) => getEventId(eventItem) === normalizedEventId
+    ) || null
+  );
+};
+
+const findEventInMyRegistrations = async (eventId) => {
+  const response = await api({ ...SummaryApi.get_my_registered_events });
+  const normalizedEventId = normalizeId(eventId);
+  const registration = getRegistrationList(response.data).find((item) => {
+    const nestedEventId =
+      typeof item?.event === "object" && item?.event !== null
+        ? getEventId(item.event)
+        : "";
+    const directEventId = normalizeId(item?.eventId);
+    const eventFieldId =
+      typeof item?.event === "string" ? normalizeId(item.event) : "";
+    return (
+      nestedEventId === normalizedEventId ||
+      directEventId === normalizedEventId ||
+      eventFieldId === normalizedEventId
+    );
+  });
+
+  if (registration && typeof registration?.event === "object" && registration.event !== null) {
+    return registration.event;
+  }
+  return null;
+};
+
 export default function StudentEventDetails({ mode = "details" }) {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -100,14 +146,37 @@ export default function StudentEventDetails({ mode = "details" }) {
       setMessage(null);
       setRegistrationWarning(null);
       try {
-        const detailsResponse = await api({
-          ...SummaryApi.get_public_event_details,
-          url: SummaryApi.get_public_event_details.url.replace(":eventId", eventId),
-        });
+        let responseEvent = null;
+        let primaryError = null;
 
-        const responseEvent = extractEventItem(detailsResponse.data);
+        try {
+          const detailsResponse = await api({
+            ...SummaryApi.get_public_event_details,
+            url: SummaryApi.get_public_event_details.url.replace(":eventId", eventId),
+          });
+          responseEvent = extractEventItem(detailsResponse.data);
+        } catch (detailsError) {
+          primaryError = detailsError;
+        }
+
         if (!responseEvent) {
-          throw new Error("Event not found.");
+          try {
+            responseEvent = await findEventInPublicList(eventId);
+          } catch {
+            // Intentionally ignored: fallback to registration history next.
+          }
+        }
+
+        if (!responseEvent) {
+          try {
+            responseEvent = await findEventInMyRegistrations(eventId);
+          } catch {
+            // Intentionally ignored: fall through to final error.
+          }
+        }
+
+        if (!responseEvent) {
+          throw primaryError || new Error("Event not found.");
         }
         const mappedEvent = mapApiEventToDetails(responseEvent);
         setEvent(mappedEvent);
@@ -117,7 +186,7 @@ export default function StudentEventDetails({ mode = "details" }) {
         const registeredIds = registrationInfo.ids;
         setRegistrationWarning(registrationInfo.warning);
         setIsRegistered(
-          registeredIds.has(String(responseEvent?._id || responseEvent?.id || responseEvent?.eventId || "").trim())
+          registeredIds.has(getEventId(responseEvent))
         );
 
         const participationMode = mappedEvent?.participationMode || "INDIVIDUAL";

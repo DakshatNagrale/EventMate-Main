@@ -13,7 +13,7 @@ export default function Hackathon() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50/20 via-white to-purple-50/20 dark:from-[#0f0f17] dark:via-[#1a1a2e] dark:to-[#16213e] pt-24">
+    <div className="eventmate-page min-h-screen bg-gradient-to-br from-indigo-50/20 via-white to-purple-50/20 dark:from-[#0f0f17] dark:via-[#1a1a2e] dark:to-[#16213e] pt-24">
 
       {/* Hero Banner */}
       <section className="relative overflow-hidden">

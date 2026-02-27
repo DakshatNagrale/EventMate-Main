@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, Loader2, MapPin } from "lucide-react";
+import { BadgeCheck, CalendarDays, Loader2, MapPin, MessageSquareMore, Search } from "lucide-react";
 import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
 import { mapApiEventToCard } from "../data/studentEventApiData";
@@ -169,6 +169,41 @@ export default function StudentDashboard() {
   const totalCompletedMyEvents = myEvents.filter((event) => event.status === "completed").length;
   const totalActiveMyEvents = myEvents.filter((event) => event.status !== "completed").length;
 
+  const quickActions = [
+    {
+      id: "browse-events",
+      title: "Browse Events",
+      subtitle: "Find new activities",
+      icon: Search,
+      iconClass: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
+      path: "/student-dashboard/events",
+    },
+    {
+      id: "my-events",
+      title: "My Events",
+      subtitle: `${myEvents.length} registered`,
+      icon: CalendarDays,
+      iconClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+      path: "/student-dashboard/my-events",
+    },
+    {
+      id: "my-certificates",
+      title: "My Certificates",
+      subtitle: "See earned",
+      icon: BadgeCheck,
+      iconClass: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+      path: "/student-dashboard/my-certificates",
+    },
+    {
+      id: "feedback",
+      title: "Feedback",
+      subtitle: "Pending",
+      icon: MessageSquareMore,
+      iconClass: "bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300",
+      path: "/student-dashboard/feedback-pending",
+    },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-gray-900 dark:text-gray-100">
       {message && (
@@ -188,6 +223,32 @@ export default function StudentDashboard() {
           {registrationWarning}
         </p>
       )}
+
+      <section className="eventmate-panel mb-8 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 p-4 sm:p-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {quickActions.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => navigate(item.path)}
+                className="eventmate-kpi rounded-xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-white/10 dark:bg-white/5 dark:hover:border-indigo-400/50 dark:hover:bg-indigo-500/10"
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${item.iconClass}`}>
+                    <Icon size={16} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">{item.subtitle}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <StatCard label="All Events" value={events.length} color="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300" />

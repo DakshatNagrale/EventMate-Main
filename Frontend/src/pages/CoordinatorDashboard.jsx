@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CalendarCheck2,
   Clock3,
+  Link2,
   LogOut,
   MessageSquareMore,
   ShieldCheck,
@@ -47,6 +48,27 @@ const formatDate = (value) => {
   return date.toLocaleDateString([], { year: "numeric", month: "short", day: "2-digit" });
 };
 
+const extractAttendanceToken = (rawValue) => {
+  const value = String(rawValue || "").trim();
+  if (!value) return "";
+
+  try {
+    const parsedUrl = new URL(value);
+    const queryToken = String(parsedUrl.searchParams.get("token") || "").trim();
+    if (queryToken) return queryToken;
+
+    const parts = parsedUrl.pathname.split("/").filter(Boolean);
+    const attendanceIndex = parts.findIndex((item) => item.toLowerCase() === "attendance");
+    if (attendanceIndex >= 0 && parts[attendanceIndex + 1]) {
+      return decodeURIComponent(parts[attendanceIndex + 1]);
+    }
+
+    return decodeURIComponent(parts[parts.length - 1] || "");
+  } catch {
+    return value.replace(/^.*\/attendance\//i, "").trim();
+  }
+};
+
 export default function CoordinatorDashboard() {
   const navigate = useNavigate();
   const user = getStoredUser();
@@ -54,6 +76,9 @@ export default function CoordinatorDashboard() {
   const [assignedEvents, setAssignedEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [attendanceInput, setAttendanceInput] = useState("");
+  const [markingAttendance, setMarkingAttendance] = useState(false);
+  const [attendanceMessage, setAttendanceMessage] = useState(null);
 
   const fetchAssignedEvents = async () => {
     setLoading(true);
@@ -97,6 +122,42 @@ export default function CoordinatorDashboard() {
   const handleLogout = async () => {
     await logoutUser();
     navigate("/login", { replace: true });
+  };
+
+  const handleMarkAttendance = async (event) => {
+    event.preventDefault();
+    setAttendanceMessage(null);
+
+    const token = extractAttendanceToken(attendanceInput);
+    if (!token) {
+      setAttendanceMessage({ type: "error", text: "Paste a valid attendance token or attendance URL." });
+      return;
+    }
+
+    setMarkingAttendance(true);
+    try {
+      const response = await api({
+        ...SummaryApi.mark_attendance_by_token,
+        url: SummaryApi.mark_attendance_by_token.url.replace(":token", encodeURIComponent(token)),
+      });
+
+      const payload = response.data?.data || {};
+      const participantName = payload.participantName ? ` Participant: ${payload.participantName}.` : "";
+      const eventName = payload.eventName ? ` Event: ${payload.eventName}.` : "";
+
+      setAttendanceMessage({
+        type: "success",
+        text: `${response.data?.message || "Attendance marked successfully."}${participantName}${eventName}`.trim(),
+      });
+      setAttendanceInput("");
+    } catch (attendanceError) {
+      setAttendanceMessage({
+        type: "error",
+        text: attendanceError.response?.data?.message || "Unable to mark attendance for this token.",
+      });
+    } finally {
+      setMarkingAttendance(false);
+    }
   };
 
   const metrics = useMemo(() => {
@@ -234,6 +295,50 @@ export default function CoordinatorDashboard() {
             </div>
             <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{metrics.liveNow}</p>
           </article>
+        </section>
+
+        <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Mark Attendance</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
+                Paste a scanned QR token or attendance URL to mark participant attendance.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+              <Link2 size={12} />
+              /api/registrations/attendance/:token
+            </span>
+          </div>
+
+          <form onSubmit={handleMarkAttendance} className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <input
+              value={attendanceInput}
+              onChange={(event) => setAttendanceInput(event.target.value)}
+              placeholder="Paste token or attendance URL"
+              className="flex-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+            />
+            <button
+              type="submit"
+              disabled={markingAttendance}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-70"
+            >
+              {markingAttendance ? <Loader2 size={14} className="animate-spin" /> : null}
+              {markingAttendance ? "Marking..." : "Mark Attendance"}
+            </button>
+          </form>
+
+          {attendanceMessage && (
+            <p
+              className={`mt-4 rounded-lg px-3 py-2 text-sm ${
+                attendanceMessage.type === "success"
+                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                  : "bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-300"
+              }`}
+            >
+              {attendanceMessage.text}
+            </p>
+          )}
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6">

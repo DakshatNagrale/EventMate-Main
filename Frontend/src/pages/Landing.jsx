@@ -36,6 +36,18 @@ const formatEventDate = (value) => {
   return parsed.toLocaleDateString([], { year: "numeric", month: "short", day: "2-digit" });
 };
 
+const RECENT_EVENTS_LIMIT = 3;
+
+const getEventRecencyTimestamp = (event) => {
+  const candidates = [event?.updatedAt, event?.createdAt, event?.schedule?.startDate];
+  for (const value of candidates) {
+    if (!value) continue;
+    const timestamp = new Date(value).getTime();
+    if (Number.isFinite(timestamp)) return timestamp;
+  }
+  return 0;
+};
+
 const mapDbEvent = (event) => {
   const fee = Number(event?.registration?.fee || 0);
   const category = event?.category || "Workshop";
@@ -101,7 +113,9 @@ export default function Landing() {
           skipAuth: true,
         });
         if (isMounted) {
-          const mapped = extractEventList(response.data).map(mapDbEvent);
+          const mapped = extractEventList(response.data)
+            .sort((a, b) => getEventRecencyTimestamp(b) - getEventRecencyTimestamp(a))
+            .map(mapDbEvent);
           setEvents(mapped);
         }
       } catch (err) {
@@ -146,6 +160,11 @@ export default function Landing() {
       return matchesSearch && matchesCategory;
     });
   }, [events, searchQuery, selectedCategory]);
+
+  const displayedEvents = useMemo(
+    () => filteredEvents.slice(0, RECENT_EVENTS_LIMIT),
+    [filteredEvents]
+  );
 
   const handleRegister = () => {
     navigate("/login");
@@ -448,7 +467,7 @@ export default function Landing() {
               <p className="text-xl text-gray-500 dark:text-gray-400">No events found matching your search.</p>
             </div>
           ) : (
-            filteredEvents.map((event) => (
+            displayedEvents.map((event) => (
               <motion.div
                 key={event.id}
                 variants={fadeUp}
