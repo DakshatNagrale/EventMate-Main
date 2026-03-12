@@ -750,7 +750,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                       </div>
                       
                       <Link to={currentProfilePath} className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5">Your Profile</Link>
-                      <Link to="/settings" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5">Settings</Link>
                       <button
                         onClick={() => { onLogout?.(); setIsUserMenuOpen(false); }}
                         className="w-full text-left block px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"

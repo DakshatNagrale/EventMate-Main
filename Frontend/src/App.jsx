@@ -16,7 +16,6 @@ import VerifyRegistration from "./pages/VerifyRegistration";
 import ForgotPassword from "./pages/ForgotPassword";
 import Profile from "./pages/Profile";
 import ProfileCustomization from "./pages/ProfileCustomization";
-import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const AdminDashboard = lazy(() =>
@@ -940,14 +939,6 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
         </Route>
       </Routes>
     </Router>
