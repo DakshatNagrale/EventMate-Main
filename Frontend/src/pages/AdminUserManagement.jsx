@@ -312,7 +312,6 @@ export default function AdminUserManagement() {
                           <AvatarWithFrame
                             src={user.avatar || ""}
                             alt={user.fullName || "User"}
-                            frame="NONE"
                             className="h-8 w-8 shrink-0"
                             coreClassName="h-full w-full border border-slate-200 dark:border-white/10 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 flex items-center justify-center text-xs font-semibold"
                             fallback={<span>{getInitials(user.fullName || "U")}</span>}
@@ -383,7 +382,6 @@ export default function AdminUserManagement() {
                 <AvatarWithFrame
                   src={profileUser.avatar || ""}
                   alt={profileUser.fullName || "User"}
-                  frame="NONE"
                   className="h-12 w-12 shrink-0"
                   coreClassName="h-full w-full border border-slate-200 dark:border-white/10 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 flex items-center justify-center text-base font-semibold"
                   fallback={<span>{getInitials(profileUser.fullName || "U")}</span>}

@@ -19,7 +19,6 @@ const ROLE_LABELS = {
   STUDENT_COORDINATOR: "Coordinator",
   STUDENT: "Student",
 };
-const DEFAULT_AVATAR_FRAME = "NONE";
 
 const formatDateTime = (value) => {
   if (!value) return "N/A";
@@ -343,7 +342,6 @@ export default function AdminDashboard() {
                           <AvatarWithFrame
                             src={item.avatar || ""}
                             alt={item.name || "User"}
-                            frame={DEFAULT_AVATAR_FRAME}
                             className="h-8 w-8 shrink-0"
                             coreClassName="h-full w-full border border-slate-200 dark:border-white/10 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 text-xs font-semibold flex items-center justify-center"
                             fallback={<span>{getInitials(item.name || "U")}</span>}

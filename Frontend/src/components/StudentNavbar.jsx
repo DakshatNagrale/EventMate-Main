@@ -25,7 +25,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
   const isStudent = user?.role === "STUDENT";
   const displayName = user?.fullName || user?.name || 'Student';
   const avatarUrl = user?.avatar || "";
-  const avatarFrame = "NONE";
   const avatarText = displayName.charAt(0).toUpperCase();
   const isDark = theme === "dark";
   const themeToggleClass =
@@ -128,7 +127,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
     <AvatarWithFrame
       src={avatarUrl}
       alt={`${displayName} avatar`}
-      frame={avatarFrame}
       className={className}
       coreClassName="h-full w-full bg-purple-100 dark:bg-indigo-500/20 flex items-center justify-center text-purple-700 dark:text-indigo-200 font-bold"
       fallback={<span className={textClassName}>{avatarText}</span>}

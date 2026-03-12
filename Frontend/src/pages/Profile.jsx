@@ -47,7 +47,6 @@ export default function Profile() {
   const isOrganizer = role === "ORGANIZER";
   const isAdmin = role === "MAIN_ADMIN";
   const canEditProfessional = isOrganizer || isAdmin || isCoordinator;
-  const selectedAvatarFrame = "NONE";
 
   const roleBadgeClass = useMemo(() => {
     if (isAdmin) return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200";
@@ -202,7 +201,6 @@ export default function Profile() {
               <AvatarWithFrame
                 src={profile?.avatar || ""}
                 alt="Avatar"
-                frame={selectedAvatarFrame}
                 className="h-20 w-20 shrink-0"
                 coreClassName="h-full w-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5"
                 fallback={<UserCircle2 className="h-10 w-10 text-slate-400" />}

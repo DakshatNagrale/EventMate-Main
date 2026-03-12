@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 export default function AvatarWithFrame({
   src = "",
   alt = "Avatar",
-  frame = "NONE",
   className = "",
   coreClassName = "",
   imageClassName = "",
@@ -18,9 +17,12 @@ export default function AvatarWithFrame({
 
   const showImage = Boolean(src) && !imageLoadFailed;
 
+  const shellClass = `inline-flex rounded-full ${className}`.trim();
+  const coreClass = `relative h-full w-full rounded-full overflow-hidden flex items-center justify-center ${coreClassName}`.trim();
+
   return (
-    <div className={`avatar-frame-shell ${className}`.trim()}>
-      <div className={`avatar-frame-core ${coreClassName}`.trim()}>
+    <div className={shellClass}>
+      <div className={coreClass}>
         {showImage ? (
           <img
             src={src}

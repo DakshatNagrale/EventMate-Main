@@ -338,7 +338,6 @@ export default function AdminOrganizerManagement() {
                             <AvatarWithFrame
                               src={organizer.avatar || ""}
                               alt={organizer.fullName || "Organizer"}
-                              frame="NONE"
                               className="h-9 w-9 shrink-0"
                               coreClassName="h-full w-full rounded-full border border-slate-200 dark:border-white/10 bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200 text-xs font-semibold flex items-center justify-center"
                               fallback={<span>{getInitials(organizer.fullName)}</span>}

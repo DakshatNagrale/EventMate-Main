@@ -310,7 +310,6 @@ export default function AdminCoordinatorManagement() {
                             <AvatarWithFrame
                               src={coordinator.avatar || ""}
                               alt={coordinator.fullName || "Coordinator"}
-                              frame="NONE"
                               className="h-8 w-8 shrink-0"
                               coreClassName="h-full w-full border border-slate-200 dark:border-white/10 bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-200 text-xs font-semibold flex items-center justify-center"
                               fallback={<span>{getInitials(coordinator.fullName)}</span>}

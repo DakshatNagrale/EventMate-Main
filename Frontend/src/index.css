@@ -192,29 +192,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-.avatar-frame-shell {
-  position: relative;
-  display: inline-flex;
-  border-radius: 9999px;
-  padding: 3px;
-}
-
-.avatar-frame-core {
-  position: relative;
-  height: 100%;
-  width: 100%;
-  border-radius: 9999px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(241, 245, 249, 0.9);
-}
-
-.dark .avatar-frame-core {
-  background: rgba(15, 23, 42, 0.82);
-}
-
 .eventmate-app-shell {
   background:
     linear-gradient(160deg, rgba(248, 250, 252, 0.86) 8%, rgba(239, 246, 255, 0.86) 56%, rgba(236, 253, 245, 0.8) 100%);

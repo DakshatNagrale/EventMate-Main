@@ -36,7 +36,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
   const isPrivileged = isAdmin || isOrganizer;
   const displayName = user?.fullName || user?.name || 'User';
   const avatarUrl = user?.avatar || "";
-  const avatarFrame = "NONE";
   const avatarInitials = (displayName || "US")
     .split(" ")
     .filter(Boolean)
@@ -614,7 +613,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                   <AvatarWithFrame
                     src={avatarUrl}
                     alt="Profile"
-                    frame={avatarFrame}
                     className="relative h-9 w-9"
                     coreClassName="h-full w-full border border-indigo-300 text-indigo-700 bg-indigo-50 dark:border-indigo-400/60 dark:bg-indigo-500/20 dark:text-indigo-200 flex items-center justify-center text-xs font-semibold"
                     fallback={<span>{avatarInitials || "AD"}</span>}
@@ -658,7 +656,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                 <AvatarWithFrame
                   src={avatarUrl}
                   alt="Profile"
-                  frame={avatarFrame}
                   className="h-9 w-9"
                   coreClassName="h-full w-full border border-indigo-300 text-indigo-700 bg-indigo-50 dark:border-indigo-400/60 dark:bg-indigo-500/20 dark:text-indigo-200 flex items-center justify-center text-xs font-semibold"
                   fallback={<span>{avatarInitials || "OR"}</span>}
@@ -733,7 +730,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                       <AvatarWithFrame
                         src={avatarUrl}
                         alt="Profile"
-                        frame={avatarFrame}
                         className="h-8 w-8"
                         coreClassName="h-full w-full bg-purple-100 dark:bg-indigo-500/20 flex items-center justify-center text-purple-700 dark:text-indigo-200 font-bold text-sm"
                         fallback={<span>{avatarInitials.charAt(0) || "U"}</span>}
@@ -891,7 +887,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                   <AvatarWithFrame
                     src={avatarUrl}
                     alt="Profile"
-                    frame={avatarFrame}
                     className="h-10 w-10"
                     coreClassName="h-full w-full bg-purple-100 dark:bg-indigo-500/20 flex items-center justify-center text-purple-700 dark:text-indigo-200 font-bold"
                     fallback={<span>{avatarInitials.charAt(0) || "U"}</span>}
