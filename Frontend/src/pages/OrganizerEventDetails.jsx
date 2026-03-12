@@ -404,7 +404,7 @@ export default function OrganizerEventDetails() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => navigate(`/organizer-dashboard/event/${encodedEventId}/scan-qr`)}
+                      onClick={() => navigate(`/organizer-dashboard/event/${encodedEventId}/view-list`)}
                       className="mt-3 rounded-lg border border-indigo-300 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-400/30 dark:text-indigo-200 dark:hover:bg-indigo-500/20"
                     >
                       View List
@@ -430,3 +430,4 @@ export default function OrganizerEventDetails() {
     </div>
   );
 }
+

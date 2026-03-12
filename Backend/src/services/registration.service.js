@@ -5,6 +5,32 @@ import MemberVerification from "../models/MemberVerification.model.js";
 import ParticipantQR from "../models/ParticipantQR.model.js";
 import sendEmail from "../config/sendEmail.js";
 import { generateQRsForRegistration } from "./qr.service.js";
+import { sendNotification } from "./notification.service.js";
+
+const notifyAssignedCoordinators = async (event, payloadBuilder) => {
+  const coordinators = event?.studentCoordinators || [];
+  for (const coordinator of coordinators) {
+    if (!coordinator?.coordinatorId) continue;
+    const payload = payloadBuilder(coordinator);
+    await sendNotification({
+      recipientId: coordinator.coordinatorId,
+      recipientName: coordinator.name || "Coordinator",
+      recipientRole: "STUDENT_COORDINATOR",
+      ...payload
+    });
+  }
+};
+
+const refreshEventAttendanceTotal = async (eventId) => {
+  if (!eventId) return;
+  const totalPresent = await ParticipantQR.countDocuments({
+    eventId,
+    attendanceMarked: true
+  });
+  await Event.findByIdAndUpdate(eventId, {
+    $set: { "attendance.totalPresent": totalPresent }
+  });
+};
 
 /* ================================================
    INITIATE REGISTRATION
@@ -89,6 +115,35 @@ export const initiateRegistration = async (eventId, userId, payload) => {
   if (!isTeam && initialStatus === "Confirmed") {
     await generateQRsForRegistration(registration, event);
   }
+  
+  // Notify student
+await sendNotification({
+  recipientId: userId,
+  recipientName: registration.teamLeader.name,
+  recipientRole: "STUDENT",
+  title: "Registration Confirmed!",
+  message: `You're registered for ${event.title}`,
+  type: "REGISTRATION",
+  refId: registration._id
+});
+
+// Notify organizer
+await sendNotification({
+  recipientId: event.createdBy,
+  recipientName: event.organizer.name,
+  recipientRole: "ORGANIZER",
+  title: "New Registration",
+  message: `${registration.teamLeader.name} registered for ${event.title}`,
+  type: "REGISTRATION",
+  refId: registration._id
+});
+
+await notifyAssignedCoordinators(event, () => ({
+  title: "New Registration",
+  message: `${registration.teamLeader.name} registered for ${event.title}`,
+  type: "REGISTRATION",
+  refId: registration._id
+}));
 
   if (isTeam && teamMembers.length > 0) {
     await sendMemberVerificationEmails(registration, teamMembers);
@@ -186,15 +241,24 @@ export const getMyRegistrations = async (userId) => {
    Organizer sees everyone registered for their event
 ================================================ */
 
-export const getEventRegistrations = async (eventId, organizerId) => {
-  // Verify the event exists and belongs to this organizer
+export const getEventRegistrations = async (eventId, requester) => {
+  // Verify the event exists and requester is allowed for this event
   const event = await Event.findById(eventId);
   if (!event) throw new Error("Event not found");
 
-  if (
-    event.organizer.organizerId.toString() !== organizerId.toString() &&
-    event.createdBy.toString() !== organizerId.toString()
-  )
+  const requesterId = requester?._id?.toString();
+  const isAdmin = requester?.role === "MAIN_ADMIN";
+  const isOrganizer =
+    event.organizer?.organizerId?.toString() === requesterId ||
+    event.createdBy?.toString() === requesterId;
+  const isAssignedCoordinator =
+    requester?.role === "STUDENT_COORDINATOR" &&
+    event.studentCoordinators.some(
+      (coordinator) =>
+        coordinator.coordinatorId?.toString() === requesterId
+    );
+
+  if (!isAdmin && !isOrganizer && !isAssignedCoordinator)
     throw new Error("Not authorized to view these registrations");
 
   const registrations = await EventRegistration.find({
@@ -314,7 +378,37 @@ if (today < eventStart || today > eventEnd)
   qr.attendanceMarkedAt = new Date();
   qr.attendanceMarkedBy = scannedBy._id;
   await qr.save();
+  await refreshEventAttendanceTotal(qr.eventId);
+// Notify student
+const registration = await EventRegistration.findById(qr.registration);
+if (registration) {
+  await sendNotification({
+    recipientId: registration.registeredBy,
+    recipientName: qr.name,
+    recipientRole: "STUDENT",
+    title: "Attendance Marked!",
+    message: `Your attendance for ${event.title} has been recorded`,
+    type: "ATTENDANCE",
+    refId: event._id
+  });
+}
 
+await sendNotification({
+  recipientId: event.createdBy,
+  recipientName: event.organizer.name,
+  recipientRole: "ORGANIZER",
+  title: "Attendance Marked",
+  message: `${qr.name}'s attendance was marked for ${event.title}`,
+  type: "ATTENDANCE",
+  refId: event._id
+});
+
+await notifyAssignedCoordinators(event, () => ({
+  title: "Attendance Marked",
+  message: `${qr.name}'s attendance was marked for ${event.title}`,
+  type: "ATTENDANCE",
+  refId: event._id
+}));
   return {
     participantName: qr.name,
     email: qr.email,
@@ -345,7 +439,40 @@ export const markAttendanceManual = async (registrationId, email, adminId) => {
   qr.attendanceMarkedAt = new Date();
   qr.attendanceMarkedBy = adminId;
   await qr.save();
+  await refreshEventAttendanceTotal(qr.eventId);
+// Notify student
+const attendedRegistration = await EventRegistration.findById(registrationId);
+if (attendedRegistration) {
+  const event = await Event.findById(attendedRegistration.event);
+  await sendNotification({
+    recipientId: attendedRegistration.registeredBy,
+    recipientName: qr.name,
+    recipientRole: "STUDENT",
+    title: "Attendance Marked!",
+    message: `Your attendance for ${event?.title || "the event"} has been recorded`,
+    type: "ATTENDANCE",
+    refId: attendedRegistration.event
+  });
 
+  if (event) {
+    await sendNotification({
+      recipientId: event.createdBy,
+      recipientName: event.organizer.name,
+      recipientRole: "ORGANIZER",
+      title: "Attendance Marked",
+      message: `${qr.name}'s attendance was marked for ${event.title}`,
+      type: "ATTENDANCE",
+      refId: event._id
+    });
+
+    await notifyAssignedCoordinators(event, () => ({
+      title: "Attendance Marked",
+      message: `${qr.name}'s attendance was marked for ${event.title}`,
+      type: "ATTENDANCE",
+      refId: event._id
+    }));
+  }
+}
   return {
     participantName: qr.name,
     email: qr.email,

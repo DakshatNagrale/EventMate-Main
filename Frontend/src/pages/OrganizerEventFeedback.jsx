@@ -7,19 +7,6 @@ import { extractEventItem } from "../lib/backendAdapters";
 
 const normalizeId = (value) => String(value || "").trim();
 
-const toNumber = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const firstNumber = (...values) => {
-  for (const value of values) {
-    const parsed = toNumber(value);
-    if (parsed !== null) return parsed;
-  }
-  return null;
-};
-
 const formatDate = (value) => {
   if (!value) return "Date unknown";
   const date = new Date(value);
@@ -27,118 +14,21 @@ const formatDate = (value) => {
   return date.toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" });
 };
 
-const getFeedbackCount = (event) =>
-  Math.max(
-    0,
-    Math.floor(
-      firstNumber(
-        event?.feedbackCount,
-        event?.totalFeedback,
-        event?.feedback?.count,
-        event?.feedback?.total,
-        event?.feedbackSummary?.total
-      ) || 0
-    )
-  );
+const parseFeedbackRows = (payload) => {
+  const feedbacks = Array.isArray(payload?.feedbacks)
+    ? payload.feedbacks
+    : Array.isArray(payload?.data?.feedbacks)
+    ? payload.data.feedbacks
+    : [];
 
-const getEventRating = (event) =>
-  firstNumber(
-    event?.averageRating,
-    event?.ratingAverage,
-    event?.rating?.average,
-    event?.ratings?.average,
-    event?.feedback?.averageRating,
-    event?.feedback?.rating
-  );
-
-const parseFeedbackItemsFromCollection = (collection) => {
-  const rows = Array.isArray(collection) ? collection : [];
-
-  return rows
-    .map((entry, index) => {
-      const rating = firstNumber(entry?.rating, entry?.stars, entry?.score, entry?.value);
-      const comment = String(entry?.comment || entry?.feedback || entry?.message || entry?.text || "").trim();
-      const reviewer =
-        entry?.reviewerName ||
-        entry?.participantName ||
-        entry?.studentName ||
-        entry?.user?.fullName ||
-        entry?.user?.name ||
-        entry?.name ||
-        "Anonymous";
-
-      if (!comment && rating === null) return null;
-
-      return {
-        id: normalizeId(entry?._id || entry?.id) || `feedback-${index}`,
-        reviewer,
-        rating,
-        comment: comment || "No written feedback provided.",
-        submittedAt: entry?.createdAt || entry?.updatedAt || null,
-      };
-    })
-    .filter(Boolean);
-};
-
-const parseRegistrationRows = (payload) => {
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.registrations)) return payload.registrations;
-  if (Array.isArray(payload?.data?.registrations)) return payload.data.registrations;
-  return [];
-};
-
-const collectFeedbackItems = (event, registrationRows) => {
-  const pools = [
-    event?.feedbackEntries,
-    event?.feedbacks,
-    event?.feedback?.entries,
-    event?.feedback?.responses,
-    event?.feedbackSummary?.entries,
-  ];
-
-  const eventItems = pools.flatMap(parseFeedbackItemsFromCollection);
-
-  const registrationItems = registrationRows.flatMap((row, index) => {
-    if (Array.isArray(row?.feedback)) {
-      return parseFeedbackItemsFromCollection(row.feedback);
-    }
-    if (row?.feedback && typeof row.feedback === "object") {
-      return parseFeedbackItemsFromCollection([row.feedback]);
-    }
-
-    const rating = firstNumber(row?.rating, row?.feedbackRating, row?.feedback?.rating);
-    const comment = String(row?.feedbackText || row?.feedbackComment || "").trim();
-
-    if (!comment && rating === null) return [];
-
-    return [
-      {
-        id: normalizeId(row?._id || row?.id) || `registration-feedback-${index}`,
-        reviewer:
-          row?.participantName ||
-          row?.student?.fullName ||
-          row?.student?.name ||
-          row?.user?.fullName ||
-          row?.user?.name ||
-          "Participant",
-        rating,
-        comment: comment || "No written feedback provided.",
-        submittedAt: row?.updatedAt || row?.createdAt || null,
-      },
-    ];
-  });
-
-  const dedupe = new Map();
-  [...eventItems, ...registrationItems].forEach((item) => {
-    const key = `${item.id}-${item.reviewer}-${item.comment}`;
-    if (!dedupe.has(key)) {
-      dedupe.set(key, item);
-    }
-  });
-
-  return Array.from(dedupe.values()).sort(
-    (a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime()
-  );
+  return feedbacks.map((entry, index) => ({
+    id: normalizeId(entry?._id || entry?.id) || `feedback-${index}`,
+    reviewer: String(entry?.participantName || "Participant").trim() || "Participant",
+    reviewerEmail: String(entry?.participantEmail || "").trim(),
+    rating: Number(entry?.rating || 0),
+    comment: String(entry?.comment || "").trim() || "No written feedback provided.",
+    submittedAt: entry?.createdAt || entry?.updatedAt || null,
+  }));
 };
 
 export default function OrganizerEventFeedback() {
@@ -147,6 +37,7 @@ export default function OrganizerEventFeedback() {
 
   const [eventData, setEventData] = useState(null);
   const [feedbackRows, setFeedbackRows] = useState([]);
+  const [feedbackMeta, setFeedbackMeta] = useState({ totalFeedbacks: 0, averageRating: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [warning, setWarning] = useState(null);
@@ -169,20 +60,31 @@ export default function OrganizerEventFeedback() {
           setLoading(false);
           return;
         }
-
-        let registrationRows = [];
-        try {
-          const registrationResponse = await api({
-            ...SummaryApi.get_event_registrations,
-            url: SummaryApi.get_event_registrations.url.replace(":eventId", encodeURIComponent(eventId || "")),
-          });
-          registrationRows = parseRegistrationRows(registrationResponse.data);
-        } catch {
-          setWarning("Detailed feedback entries are limited in this backend build.");
-        }
-
         setEventData(event);
-        setFeedbackRows(collectFeedbackItems(event, registrationRows));
+
+        try {
+          const feedbackResponse = await api({
+            ...SummaryApi.get_event_feedback,
+            url: SummaryApi.get_event_feedback.url.replace(":eventId", encodeURIComponent(eventId || "")),
+          });
+
+          const feedbackPayload = feedbackResponse.data?.data || {};
+          const rows = parseFeedbackRows(feedbackPayload).sort(
+            (a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime()
+          );
+
+          setFeedbackRows(rows);
+          setFeedbackMeta({
+            totalFeedbacks: Number(feedbackPayload?.totalFeedbacks || rows.length || 0),
+            averageRating: Number.isFinite(Number(feedbackPayload?.averageRating))
+              ? Number(feedbackPayload.averageRating)
+              : null,
+          });
+        } catch (feedbackError) {
+          setFeedbackRows([]);
+          setFeedbackMeta({ totalFeedbacks: 0, averageRating: null });
+          setWarning(feedbackError.response?.data?.message || "Unable to load feedback entries.");
+        }
       } catch (fetchError) {
         setEventData(null);
         setFeedbackRows([]);
@@ -206,25 +108,14 @@ export default function OrganizerEventFeedback() {
       };
     }
 
-    const ratingFromRows = feedbackRows
-      .map((row) => toNumber(row.rating))
-      .filter((value) => value !== null);
-
-    const averageFromRows = ratingFromRows.length
-      ? ratingFromRows.reduce((sum, value) => sum + value, 0) / ratingFromRows.length
-      : null;
-
-    const averageRating = getEventRating(eventData) ?? averageFromRows;
-    const feedbackCount = Math.max(getFeedbackCount(eventData), feedbackRows.length);
-
     return {
       title: eventData?.title || "Event",
       category: eventData?.category || "General",
       status: String(eventData?.status || "Draft"),
-      averageRating,
-      feedbackCount,
+      averageRating: feedbackMeta.averageRating,
+      feedbackCount: Math.max(Number(feedbackMeta.totalFeedbacks || 0), feedbackRows.length),
     };
-  }, [eventData, feedbackRows]);
+  }, [eventData, feedbackMeta, feedbackRows.length]);
 
   return (
     <div className="eventmate-page min-h-screen bg-slate-100/80 dark:bg-gray-900 px-4 sm:px-6 py-8">
@@ -304,7 +195,7 @@ export default function OrganizerEventFeedback() {
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Feedback Entries</h2>
               {feedbackRows.length === 0 ? (
                 <p className="mt-3 text-sm text-slate-500 dark:text-slate-300">
-                  Feedback entry list is not exposed by current backend routes for this event.
+                  No feedback entries available for this event yet.
                 </p>
               ) : (
                 <div className="mt-4 space-y-3">
@@ -313,11 +204,12 @@ export default function OrganizerEventFeedback() {
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold text-slate-900 dark:text-white">{row.reviewer}</p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-300 break-all">{row.reviewerEmail || "Email unavailable"}</p>
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{formatDate(row.submittedAt)}</p>
                         </div>
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
                           <Star size={12} />
-                          {row.rating === null ? "No rating" : row.rating}
+                          {Number.isFinite(row.rating) && row.rating > 0 ? row.rating : "No rating"}
                         </span>
                       </div>
                       <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{row.comment}</p>
@@ -326,10 +218,6 @@ export default function OrganizerEventFeedback() {
                 </div>
               )}
 
-              <div className="mt-4 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs text-slate-500 dark:text-slate-300 inline-flex items-center gap-2">
-                <MessageSquareMore size={13} />
-                This page is dynamic and uses currently exposed backend fields without adding backend changes.
-              </div>
             </section>
           </>
         )}

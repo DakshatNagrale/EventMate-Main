@@ -50,7 +50,7 @@ export const getEventRegistrations = async (req, res, next) => {
   try {
     const registrations = await registrationService.getEventRegistrations(
       req.params.eventId,
-      req.user._id
+      req.user
     );
     return res.status(200).json({
       success: true,

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, ArrowLeft, Loader2, UploadCloud } from "lucide-react";
+import { AlertCircle, ArrowLeft, CalendarDays, Loader2, Plus, Trash2, UploadCloud } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
+import { extractUsersList } from "../lib/backendAdapters";
 
 const initialForm = {
   title: "",
@@ -21,13 +22,14 @@ const initialForm = {
   minTeamSize: "2",
   maxTeamSize: "4",
   poster: null,
+  resourceFile: null,
 };
 
 const fieldClass =
   "w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 dark:placeholder-slate-500 dark:[color-scheme:dark]";
 const dateTimeFieldClass = `${fieldClass} dark:[color-scheme:dark]`;
-const prefixedFieldClass =
-  "w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 pl-10 pr-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 dark:placeholder-slate-500 dark:[color-scheme:dark]";
+const normalizeId = (value) => String(value || "").trim();
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 
 export default function OrganizerCreateEvent() {
   const navigate = useNavigate();
@@ -37,6 +39,12 @@ export default function OrganizerCreateEvent() {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [coordinatorOptions, setCoordinatorOptions] = useState([]);
+  const [selectedCoordinatorId, setSelectedCoordinatorId] = useState("");
+  const [loadingCoordinatorOptions, setLoadingCoordinatorOptions] = useState(false);
+  const [coordinatorOptionsError, setCoordinatorOptionsError] = useState("");
+  const [judges, setJudges] = useState([]);
+  const [mentors, setMentors] = useState([]);
 
   useEffect(() => {
     if (!form.poster) {
@@ -49,6 +57,41 @@ export default function OrganizerCreateEvent() {
     return () => URL.revokeObjectURL(url);
   }, [form.poster]);
 
+  useEffect(() => {
+    const loadCoordinatorOptions = async () => {
+      setLoadingCoordinatorOptions(true);
+      setCoordinatorOptionsError("");
+      try {
+        const response = await api({
+          ...SummaryApi.get_event_coordinators,
+          cacheTTL: 60000,
+        });
+
+        const rows = extractUsersList(response.data);
+        const options = rows
+          .filter((item) => String(item?.role || "").toUpperCase() === "STUDENT_COORDINATOR")
+          .map((item) => ({
+            id: normalizeId(item?._id || item?.id),
+            fullName: String(item?.fullName || "Coordinator").trim() || "Coordinator",
+            email: normalizeEmail(item?.email),
+          }))
+          .filter((item) => item.id)
+          .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+        setCoordinatorOptions(options);
+      } catch (error) {
+        setCoordinatorOptions([]);
+        setCoordinatorOptionsError(
+          error.response?.data?.message || "Unable to load coordinator list right now."
+        );
+      } finally {
+        setLoadingCoordinatorOptions(false);
+      }
+    };
+
+    loadCoordinatorOptions();
+  }, []);
+
   const handleChange = (event) => {
     const { name, value, type, checked, files } = event.target;
     if (type === "checkbox") {
@@ -60,6 +103,20 @@ export default function OrganizerCreateEvent() {
       return;
     }
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleListItemChange = (setter, index, key, value) => {
+    setter((prev) =>
+      prev.map((item, itemIndex) => (itemIndex === index ? { ...item, [key]: value } : item))
+    );
+  };
+
+  const handleListAdd = (setter, template) => {
+    setter((prev) => [...prev, { ...template }]);
+  };
+
+  const handleListRemove = (setter, index) => {
+    setter((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const validateForm = () => {
@@ -75,12 +132,12 @@ export default function OrganizerCreateEvent() {
     if (!form.startDate || !form.startTime || !form.endDate || !form.endTime) {
       return "Schedule (start/end date and time) is required.";
     }
-    if (!form.registrationLastDate) return "Registration last date is required.";
     if (!form.maxParticipants || Number(form.maxParticipants) < 1) {
       return "Max participants must be at least 1.";
     }
 
-    if (new Date(form.registrationLastDate) > new Date(form.startDate)) {
+    const registrationCutoff = form.registrationLastDate || form.startDate;
+    if (new Date(registrationCutoff) > new Date(form.startDate)) {
       return "Registration last date cannot be after event start date.";
     }
 
@@ -124,7 +181,7 @@ export default function OrganizerCreateEvent() {
       "registration",
       JSON.stringify({
         isOpen: Boolean(form.registrationOpen),
-        lastDate: form.registrationLastDate,
+        lastDate: form.registrationLastDate || form.startDate,
         maxParticipants: Number(form.maxParticipants),
         fee: Number(form.registrationFee || 0),
       })
@@ -171,15 +228,37 @@ export default function OrganizerCreateEvent() {
         });
       }
 
+      let assignmentNote = "";
+      const coordinatorId = normalizeId(selectedCoordinatorId);
+      const selectedCoordinator = coordinatorOptions.find((item) => item.id === coordinatorId);
+
+      if (coordinatorId && createdEventId) {
+        try {
+          await api({
+            ...SummaryApi.assign_coordinator_to_event,
+            url: SummaryApi.assign_coordinator_to_event.url.replace(":eventId", createdEventId),
+            data: { coordinatorId },
+          });
+          assignmentNote = ` Coordinator assigned: ${selectedCoordinator?.fullName || "Selected coordinator"}.`;
+        } catch (assignError) {
+          assignmentNote = ` Coordinator assignment failed: ${
+            assignError.response?.data?.message || "Please assign from Coordinator Management."
+          }`;
+        }
+      }
+
       setMessage({
         type: "success",
         text: publish
-          ? "Event created and published successfully."
-          : createResponse.data?.message || "Event created as draft.",
+          ? `Event created and published successfully.${assignmentNote}`
+          : `${createResponse.data?.message || "Event created as draft."}${assignmentNote}`,
       });
 
       setForm(initialForm);
       setPreviewUrl("");
+      setSelectedCoordinatorId("");
+      setJudges([]);
+      setMentors([]);
     } catch (error) {
       setMessage({
         type: "error",
@@ -253,176 +332,156 @@ export default function OrganizerCreateEvent() {
             </p>
           )}
 
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-[1.8fr_1fr] gap-4">
-            <div className="space-y-4">
-              <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Basic Information</h2>
-                <div className="mt-3 space-y-3">
+          <div className="mt-6 space-y-4">
+            <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white inline-flex items-center gap-1.5">
+                <AlertCircle size={13} className="text-indigo-500" />
+                Basic Information
+              </p>
+              <div className="mt-3 space-y-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Event Title</span>
                   <input
                     name="title"
                     value={form.title}
                     onChange={handleChange}
-                    placeholder="Event title"
-                    className={fieldClass}
+                    placeholder="e.g. Annual Tech Hackathon 2024"
+                    className={`mt-1 ${fieldClass}`}
                   />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">About the Event</span>
                   <textarea
                     name="description"
                     value={form.description}
                     onChange={handleChange}
                     rows={4}
-                    placeholder="Event description"
-                    className={fieldClass}
+                    placeholder="Brief description for the event card and detailed view."
+                    className={`mt-1 ${fieldClass}`}
                   />
-                  <select
-                    name="category"
-                    value={form.category}
-                    onChange={handleChange}
-                    className={fieldClass}
-                  >
-                    <option value="">Select category</option>
-                    <option value="Technical">Technical</option>
-                    <option value="Cultural">Cultural</option>
-                    <option value="Sports">Sports</option>
-                    <option value="Workshop">Workshop</option>
-                  </select>
-                </div>
-              </section>
-
-              <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Schedule & Venue</h2>
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input type="date" name="startDate" value={form.startDate} onChange={handleChange} className={dateTimeFieldClass} />
-                  <input type="time" name="startTime" value={form.startTime} onChange={handleChange} className={dateTimeFieldClass} />
-                  <input type="date" name="endDate" value={form.endDate} onChange={handleChange} className={dateTimeFieldClass} />
-                  <input type="time" name="endTime" value={form.endTime} onChange={handleChange} className={dateTimeFieldClass} />
-                  <input
-                    name="venueLocation"
-                    value={form.venueLocation}
-                    onChange={handleChange}
-                    placeholder="Venue location"
-                    className={`sm:col-span-2 ${fieldClass}`}
-                  />
-                </div>
-              </section>
-
-              <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Registration Setup</h2>
-                  <span className="rounded-full bg-indigo-100 dark:bg-indigo-500/20 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
-                    {form.eventMode === "TEAM" ? "Team Event" : "Individual Event"}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-                  Define how students can register, how many seats are available, and whether the event is paid.
-                </p>
-
-                <div className="mt-3 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300">
-                  Keep registration last date on or before event start date. Team size rules apply only when participation format is set to Team Event.
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="block">
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Registration Last Date</span>
-                    <input
-                      type="date"
-                      name="registrationLastDate"
-                      value={form.registrationLastDate}
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Category</span>
+                    <select
+                      name="category"
+                      value={form.category}
                       onChange={handleChange}
-                      className={`mt-1 ${dateTimeFieldClass}`}
-                    />
-                    <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                      Students cannot register after this date.
-                    </span>
+                      className={`mt-1 ${fieldClass}`}
+                    >
+                      <option value="">Select category</option>
+                      <option value="Technical">Technical</option>
+                      <option value="Cultural">Cultural</option>
+                      <option value="Sports">Sports</option>
+                      <option value="Workshop">Workshop</option>
+                    </select>
                   </label>
-
                   <label className="block">
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Maximum Participants</span>
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Max Participants</span>
                     <input
                       type="number"
                       min="1"
                       name="maxParticipants"
                       value={form.maxParticipants}
                       onChange={handleChange}
-                      placeholder="e.g. 100"
+                      placeholder="0"
                       className={`mt-1 ${fieldClass}`}
                     />
-                    <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                      Total seats available for this event.
-                    </span>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Registration Fee (INR)</span>
-                    <div className="relative mt-1">
-                      <span className="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center text-sm text-slate-500 dark:text-slate-400">
-                        Rs
-                      </span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        name="registrationFee"
-                        value={form.registrationFee}
-                        onChange={handleChange}
-                        placeholder="0.00"
-                        className={prefixedFieldClass}
-                      />
-                    </div>
-                    <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                      Keep 0 for free registration.
-                    </span>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Participation Format</span>
-                    <select
-                      name="eventMode"
-                      value={form.eventMode}
-                      onChange={handleChange}
-                      className={`mt-1 ${fieldClass}`}
-                    >
-                      <option value="INDIVIDUAL">Individual Event</option>
-                      <option value="TEAM">Team Event</option>
-                    </select>
-                    <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                      Choose Team Event if students register as teams.
-                    </span>
                   </label>
                 </div>
+              </div>
+            </section>
 
-                {form.eventMode === "TEAM" && (
-                  <div className="mt-3 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-3">
-                    <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Team Size Rules</p>
-                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <label className="block">
-                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Minimum Team Size</span>
-                        <input
-                          type="number"
-                          min="1"
-                          name="minTeamSize"
-                          value={form.minTeamSize}
-                          onChange={handleChange}
-                          placeholder="e.g. 2"
-                          className={`mt-1 ${fieldClass}`}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Maximum Team Size</span>
-                        <input
-                          type="number"
-                          min="2"
-                          name="maxTeamSize"
-                          value={form.maxTeamSize}
-                          onChange={handleChange}
-                          placeholder="e.g. 4"
-                          className={`mt-1 ${fieldClass}`}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                )}
+            <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white inline-flex items-center gap-1.5">
+                  <CalendarDays size={13} className="text-indigo-500" />
+                  Date, Time & Venue
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMessage({ type: "success", text: "Multi-slot support is not available in this backend build; one schedule is used." })}
+                  className="text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200"
+                >
+                  + Add Section
+                </button>
+              </div>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Start Date</span>
+                  <input type="date" name="startDate" value={form.startDate} onChange={handleChange} className={`mt-1 ${dateTimeFieldClass}`} />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Start Time</span>
+                  <input type="time" name="startTime" value={form.startTime} onChange={handleChange} className={`mt-1 ${dateTimeFieldClass}`} />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">End Date</span>
+                  <input type="date" name="endDate" value={form.endDate} onChange={handleChange} className={`mt-1 ${dateTimeFieldClass}`} />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">End Time</span>
+                  <input type="time" name="endTime" value={form.endTime} onChange={handleChange} className={`mt-1 ${dateTimeFieldClass}`} />
+                </label>
+                <label className="sm:col-span-2 block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Venue / Location</span>
+                  <input
+                    name="venueLocation"
+                    value={form.venueLocation}
+                    onChange={handleChange}
+                    placeholder="e.g. Auditorium Hall B, Main Campus"
+                    className={`mt-1 ${fieldClass}`}
+                  />
+                </label>
+              </div>
+            </section>
 
-                <label className="mt-3 flex items-start gap-3 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300">
+            <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">Registration & Participation</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Previous options restored. `Registration Last Date` is optional and defaults to `Start Date`.
+              </p>
+
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Registration Last Date</span>
+                  <input
+                    type="date"
+                    name="registrationLastDate"
+                    value={form.registrationLastDate}
+                    onChange={handleChange}
+                    className={`mt-1 ${dateTimeFieldClass}`}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Registration Fee (INR)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    name="registrationFee"
+                    value={form.registrationFee}
+                    onChange={handleChange}
+                    placeholder="0"
+                    className={`mt-1 ${fieldClass}`}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Participation Format</span>
+                  <select
+                    name="eventMode"
+                    value={form.eventMode}
+                    onChange={handleChange}
+                    className={`mt-1 ${fieldClass}`}
+                  >
+                    <option value="INDIVIDUAL">Individual Event</option>
+                    <option value="TEAM">Team Event</option>
+                  </select>
+                </label>
+
+                <label className="mt-5 inline-flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
                     name="registrationOpen"
@@ -430,27 +489,187 @@ export default function OrganizerCreateEvent() {
                     onChange={handleChange}
                     className="mt-0.5 h-4 w-4 accent-indigo-600 dark:accent-indigo-400"
                   />
-                  <span>
-                    <span className="block font-semibold text-slate-800 dark:text-slate-100">Open registration immediately</span>
-                    <span className="block text-xs text-slate-500 dark:text-slate-400">
-                      {form.registrationOpen
-                        ? "Students can register as soon as the event is published."
-                        : "Registration will remain closed after publishing until enabled later."}
-                    </span>
-                  </span>
+                  Open registration immediately after publish
                 </label>
-              </section>
-            </div>
+              </div>
 
-            <div className="space-y-4">
-              <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Event Banner</h2>
-                <label className="mt-3 flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-white/20 p-5 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5">
+              {form.eventMode === "TEAM" && (
+                <div className="mt-3 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-3">
+                  <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Team Size Rules</p>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Minimum Team Size</span>
+                      <input
+                        type="number"
+                        min="1"
+                        name="minTeamSize"
+                        value={form.minTeamSize}
+                        onChange={handleChange}
+                        className={`mt-1 ${fieldClass}`}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Maximum Team Size</span>
+                      <input
+                        type="number"
+                        min="2"
+                        name="maxTeamSize"
+                        value={form.maxTeamSize}
+                        onChange={handleChange}
+                        className={`mt-1 ${fieldClass}`}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Assign Coordinator (Optional)</p>
+                <button
+                  type="button"
+                  onClick={() => navigate("/organizer-dashboard/coordinator-management")}
+                  className="text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200"
+                >
+                  Manage Coordinators
+                </button>
+              </div>
+              <div className="mt-3 space-y-2">
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    Select coordinator for this event
+                  </span>
+                  <select
+                    value={selectedCoordinatorId}
+                    onChange={(event) => setSelectedCoordinatorId(event.target.value)}
+                    className={`mt-1 ${fieldClass}`}
+                    disabled={loadingCoordinatorOptions}
+                  >
+                    <option value="">No coordinator selected</option>
+                    {coordinatorOptions.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.fullName} ({item.email || "no-email"})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {loadingCoordinatorOptions && (
+                  <p className="inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <Loader2 size={12} className="animate-spin" />
+                    Loading coordinator list...
+                  </p>
+                )}
+
+                {coordinatorOptionsError && (
+                  <p className="text-xs rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300">
+                    {coordinatorOptionsError}
+                  </p>
+                )}
+
+                {!loadingCoordinatorOptions && !coordinatorOptionsError && coordinatorOptions.length === 0 && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    No coordinator accounts found. Create one from Coordinator Management.
+                  </p>
+                )}
+
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Selected coordinator will be linked right after event creation.
+                </p>
+              </div>
+            </section>
+
+            <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Judges & Mentors</p>
+                <button
+                  type="button"
+                  onClick={() => handleListAdd(setJudges, { name: "", organization: "", department: "", occupation: "" })}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-300"
+                >
+                  <Plus size={12} />
+                  Add Judge
+                </button>
+              </div>
+
+              <div className="mt-3 space-y-3">
+                {judges.map((row, index) => (
+                  <div key={`judge-${index}`} className="rounded-lg border border-slate-200 dark:border-white/10 p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <input value={row.name} onChange={(event) => handleListItemChange(setJudges, index, "name", event.target.value)} placeholder="Judge Name" className={fieldClass} />
+                      <input value={row.organization} onChange={(event) => handleListItemChange(setJudges, index, "organization", event.target.value)} placeholder="College/Company Name" className={fieldClass} />
+                      <input value={row.department} onChange={(event) => handleListItemChange(setJudges, index, "department", event.target.value)} placeholder="Department" className={fieldClass} />
+                      <input value={row.occupation} onChange={(event) => handleListItemChange(setJudges, index, "occupation", event.target.value)} placeholder="Occupation" className={`sm:col-span-2 ${fieldClass}`} />
+                      <button type="button" onClick={() => handleListRemove(setJudges, index)} className="inline-flex items-center justify-center rounded-lg border border-rose-200 px-3 py-2 text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/15">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Mentors</span>
+                <button
+                  type="button"
+                  onClick={() => handleListAdd(setMentors, { name: "", organization: "", department: "", occupation: "" })}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-300"
+                >
+                  <Plus size={12} />
+                  Add Mentor
+                </button>
+              </div>
+              <div className="mt-2 space-y-3">
+                {mentors.map((row, index) => (
+                  <div key={`mentor-${index}`} className="rounded-lg border border-slate-200 dark:border-white/10 p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <input value={row.name} onChange={(event) => handleListItemChange(setMentors, index, "name", event.target.value)} placeholder="Mentor Name" className={fieldClass} />
+                      <input value={row.organization} onChange={(event) => handleListItemChange(setMentors, index, "organization", event.target.value)} placeholder="College/Company Name" className={fieldClass} />
+                      <input value={row.department} onChange={(event) => handleListItemChange(setMentors, index, "department", event.target.value)} placeholder="Department" className={fieldClass} />
+                      <input value={row.occupation} onChange={(event) => handleListItemChange(setMentors, index, "occupation", event.target.value)} placeholder="Occupation" className={`sm:col-span-2 ${fieldClass}`} />
+                      <button type="button" onClick={() => handleListRemove(setMentors, index)} className="inline-flex items-center justify-center rounded-lg border border-rose-200 px-3 py-2 text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/15">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {judges.length === 0 && mentors.length === 0 && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Judges and mentors are optional and kept as event notes in frontend.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="eventmate-panel rounded-xl border border-slate-200 dark:border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Schedule & Resources</p>
+                <button
+                  type="button"
+                  onClick={() => setMessage({ type: "success", text: "Resources upload is optional and not required for publish." })}
+                  className="text-xs font-semibold text-indigo-600 dark:text-indigo-300"
+                >
+                  + Add Resource / Schedule
+                </button>
+              </div>
+
+              <label className="mt-3 flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-white/20 p-5 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5">
+                <UploadCloud size={18} className="text-indigo-500" />
+                <span className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                  Upload a file or drag and drop (PNG, JPG, PDF up to 10MB)
+                </span>
+                <input type="file" name="resourceFile" onChange={handleChange} accept=".pdf,.png,.jpg,.jpeg" className="hidden" />
+              </label>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
+                Resource upload is optional.
+              </p>
+
+              <div className="mt-4 rounded-lg border border-slate-200 dark:border-white/10 p-3">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Event Poster (Required by backend)</p>
+                <label className="mt-2 flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-white/20 p-4 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5">
                   <UploadCloud size={18} className="text-indigo-500" />
                   <span className="mt-2 text-xs text-slate-600 dark:text-slate-300">Upload .PNG, .JPG</span>
                   <input type="file" name="poster" onChange={handleChange} accept="image/*" className="hidden" />
                 </label>
-
                 {previewUrl && (
                   <img
                     src={previewUrl}
@@ -458,15 +677,15 @@ export default function OrganizerCreateEvent() {
                     className="mt-3 h-36 w-full rounded-lg object-cover border border-slate-200 dark:border-white/10"
                   />
                 )}
-              </section>
+              </div>
 
               {!form.poster && (
-                <p className="text-xs text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-500/15 rounded-lg px-3 py-2 inline-flex items-center gap-2">
+                <p className="mt-3 text-xs text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-500/15 rounded-lg px-3 py-2 inline-flex items-center gap-2">
                   <AlertCircle size={13} />
                   Poster is required by current backend for event creation.
                 </p>
               )}
-            </div>
+            </section>
           </div>
         </section>
       </div>

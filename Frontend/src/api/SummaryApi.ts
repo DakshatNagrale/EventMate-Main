@@ -55,6 +55,33 @@ const SummaryApi = {
     method: "post",
   },
 
+  /* ================= CONTACT ================= */
+  submit_contact: {
+    url: "/api/contact",
+    method: "post",
+  },
+
+  get_contacts: {
+    url: "/api/contact",
+    method: "get",
+  },
+
+  /* ================= NOTIFICATIONS ================= */
+  get_my_notifications: {
+    url: "/api/notifications/my",
+    method: "get",
+  },
+
+  mark_all_notifications_read: {
+    url: "/api/notifications/read-all",
+    method: "patch",
+  },
+
+  mark_notification_read: {
+    url: "/api/notifications/:notificationId/read",
+    method: "patch",
+  },
+
   /* ================= EVENTS ================= */
   create_event: {
     url: "/api/events",
@@ -68,6 +95,11 @@ const SummaryApi = {
 
   get_my_events: {
     url: "/api/events/myEvents",
+    method: "get",
+  },
+
+  get_my_assigned_events: {
+    url: "/api/events/assigned-to-me",
     method: "get",
   },
 
@@ -96,11 +128,6 @@ const SummaryApi = {
     method: "patch",
   },
 
-  complete_event: {
-    url: "/api/events/:eventId/complete",
-    method: "patch",
-  },
-
   register_for_event: {
     url: "/api/registrations/:eventId/draft",
     method: "post",
@@ -121,8 +148,60 @@ const SummaryApi = {
     method: "get",
   },
 
+  /* ================= FEEDBACK ================= */
+  submit_feedback: {
+    url: "/api/feedback/:eventId",
+    method: "post",
+  },
+
+  get_event_feedback: {
+    url: "/api/feedback/:eventId",
+    method: "get",
+  },
+
+  /* ================= CERTIFICATES ================= */
+  get_my_certificates: {
+    url: "/api/certificates/my",
+    method: "get",
+  },
+
+  get_event_certificates: {
+    url: "/api/certificates/:eventId",
+    method: "get",
+  },
+
+  generate_event_certificates: {
+    url: "/api/certificates/:eventId/generate",
+    method: "post",
+  },
+
+  issue_selected_certificates: {
+    url: "/api/certificates/:eventId/issue",
+    method: "post",
+  },
+
+  update_event_certificate_customization: {
+    url: "/api/certificates/:eventId/customization",
+    method: "patch",
+  },
+
+  upload_event_certificate_background: {
+    url: "/api/certificates/:eventId/background",
+    method: "patch",
+  },
+
+  download_certificate: {
+    url: "/api/certificates/download/:eventId/:emailSlug",
+    method: "get",
+  },
+
+  verify_certificate_code: {
+    url: "/api/certificates/verify",
+    method: "post",
+  },
+
   get_event_coordinators: {
-    url: "/api/admin/users",
+    url: "/api/admin/coordinators",
     method: "get",
   },
 
@@ -137,7 +216,7 @@ const SummaryApi = {
   },
 
   get_organizer_coordinator_activity: {
-    url: "/api/admin/users",
+    url: "/api/admin/coordinators",
     method: "get",
   },
 
@@ -158,8 +237,28 @@ const SummaryApi = {
   },
 
   get_organizers: {
-    url: "/api/admin/users",
+    url: "/api/admin/organizers",
     method: "get",
+  },
+
+  get_organizer_event_counts: {
+    url: "/api/admin/organizers/event-counts",
+    method: "get",
+  },
+
+  get_admin_certificates_registry: {
+    url: "/api/admin/certificates/registry",
+    method: "get",
+  },
+
+  get_admin_certificate_audit_logs: {
+    url: "/api/admin/certificates/audit-logs",
+    method: "get",
+  },
+
+  revoke_admin_certificate: {
+    url: "/api/admin/certificates/:certificateId/revoke",
+    method: "patch",
   },
 
   create_organizer: {
@@ -178,7 +277,7 @@ const SummaryApi = {
   },
 
   get_coordinators: {
-    url: "/api/admin/users",
+    url: "/api/admin/coordinators",
     method: "get",
   },
 

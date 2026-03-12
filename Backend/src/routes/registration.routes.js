@@ -26,7 +26,7 @@ router.get("/my", authMiddleware, getMyRegistrations);
 router.get(
   "/:eventId/all",
   authMiddleware,
-  roleMiddleware("MAIN_ADMIN", "ORGANIZER"),
+  roleMiddleware("MAIN_ADMIN", "ORGANIZER", "STUDENT_COORDINATOR"),
   getEventRegistrations
 );
 

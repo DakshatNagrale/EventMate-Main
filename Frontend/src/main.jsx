@@ -4,10 +4,12 @@ import App from "./App"
 import "./index.css"
 import { ThemeProvider } from "./context/ThemeContext"
 
+const appTree = (
+  <ThemeProvider>
+    <App />
+  </ThemeProvider>
+)
+
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <ThemeProvider>
-      <App />
-    </ThemeProvider>
-  </React.StrictMode>
+  import.meta.env.DEV ? appTree : <React.StrictMode>{appTree}</React.StrictMode>
 )

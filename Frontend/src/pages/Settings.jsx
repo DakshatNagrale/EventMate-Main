@@ -1,11 +1,10 @@
-import { Bell, Lock, Palette, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Bell, Lock, Palette, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const upcoming = [
   { title: "Notification Preferences", detail: "Choose email and push alert granularity.", icon: Bell },
   { title: "Account Security", detail: "Configure MFA and active device controls.", icon: Lock },
   { title: "Interface Theme", detail: "Save preferred theme and accessibility contrast.", icon: Palette },
-  { title: "Avatar Frame Studio", detail: "Apply wing-style and animated profile frames.", icon: Sparkles },
 ];
 
 export default function Settings() {
@@ -57,10 +56,10 @@ export default function Settings() {
               </p>
             </div>
             <Link
-              to="/profile/customization"
+              to="/profile"
               className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition"
             >
-              Open Avatar Studio
+              Go to Profile
             </Link>
           </div>
         </div>

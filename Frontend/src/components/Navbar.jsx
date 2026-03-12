@@ -13,13 +13,14 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from "framer-motion";
 import { useTheme } from '../context/ThemeContext';
 import AvatarWithFrame from './AvatarWithFrame';
-import { DEFAULT_AVATAR_FRAME } from '../constants/profileCustomization';
+import api from "../lib/api";
+import SummaryApi from "../api/SummaryApi";
 
 const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isAdminUsersMenuOpen, setIsAdminUsersMenuOpen] = useState(false);
-  const [adminUnreadCount, setAdminUnreadCount] = useState(0);
+  const [roleUnreadCount, setRoleUnreadCount] = useState(0);
   const adminUsersMenuCloseTimeoutRef = useRef(null);
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
   const isPrivileged = isAdmin || isOrganizer;
   const displayName = user?.fullName || user?.name || 'User';
   const avatarUrl = user?.avatar || "";
-  const avatarFrame = DEFAULT_AVATAR_FRAME;
+  const avatarFrame = "NONE";
   const avatarInitials = (displayName || "US")
     .split(" ")
     .filter(Boolean)
@@ -62,14 +63,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
     STUDENT_COORDINATOR: "/coordinator-dashboard/profile",
     STUDENT: "/profile",
   };
-  const roleCustomizationPath = {
-    MAIN_ADMIN: "/profile/customization",
-    ORGANIZER: "/profile/customization",
-    STUDENT_COORDINATOR: "/profile/customization",
-    STUDENT: "/profile/customization",
-  };
   const currentProfilePath = roleProfilePath[user?.role] || "/profile";
-  const currentCustomizationPath = roleCustomizationPath[user?.role] || "/profile/customization";
 
   const studentRouteMap = {
     home: "/student-dashboard",
@@ -87,25 +81,52 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
   }, []);
 
   useEffect(() => {
-    if (!isAdmin) {
-      setAdminUnreadCount(0);
+    if (!isAuthenticated || isStudent) {
+      setRoleUnreadCount(0);
       return undefined;
     }
 
-    setAdminUnreadCount(0);
+    const roleEventMap = {
+      MAIN_ADMIN: "eventmate:admin-unread-count",
+      ORGANIZER: "eventmate:organizer-unread-count",
+      STUDENT_COORDINATOR: "eventmate:coordinator-unread-count",
+    };
+
+    const unreadEventName = roleEventMap[user?.role];
+    let mounted = true;
+
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await api({ ...SummaryApi.get_my_notifications, cacheTTL: 8000 });
+        const nextCount = Number(response?.data?.unreadCount || 0);
+        if (mounted) setRoleUnreadCount(Number.isFinite(nextCount) ? Math.max(0, nextCount) : 0);
+      } catch {
+        if (mounted) setRoleUnreadCount(0);
+      }
+    };
 
     const handleUnreadEvent = (event) => {
       const nextCount = Number(event?.detail);
       if (!Number.isNaN(nextCount)) {
-        setAdminUnreadCount(nextCount);
+        setRoleUnreadCount(Math.max(0, nextCount));
       }
     };
-    window.addEventListener("eventmate:admin-unread-count", handleUnreadEvent);
+
+    if (unreadEventName) {
+      window.addEventListener(unreadEventName, handleUnreadEvent);
+    }
+
+    fetchUnreadCount();
+    const intervalId = setInterval(fetchUnreadCount, 30000);
 
     return () => {
-      window.removeEventListener("eventmate:admin-unread-count", handleUnreadEvent);
+      mounted = false;
+      clearInterval(intervalId);
+      if (unreadEventName) {
+        window.removeEventListener(unreadEventName, handleUnreadEvent);
+      }
     };
-  }, [isAdmin, location.pathname]);
+  }, [isAuthenticated, isStudent, user?.role, location.pathname]);
 
   const openAdminUsersMenu = () => {
     if (adminUsersMenuCloseTimeoutRef.current) {
@@ -174,6 +195,14 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
         ? "text-purple-600 dark:text-indigo-300 border-b-2 border-purple-600 dark:border-indigo-300"
         : "text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-indigo-300 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-white/20";
     }
+    if (isCoordinator && pageName === "home") {
+      const atCoordinatorHome =
+        location.pathname === "/coordinator-dashboard" ||
+        location.pathname === "/coordinator-dashboard/";
+      return atCoordinatorHome
+        ? "text-purple-600 dark:text-indigo-300 border-b-2 border-purple-600 dark:border-indigo-300"
+        : "text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-indigo-300 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-white/20";
+    }
     // For internal dashboard views (Home/Events), use the prop state
     return activePage === pageName 
       ? "text-purple-600 dark:text-indigo-300 border-b-2 border-purple-600 dark:border-indigo-300" 
@@ -181,14 +210,17 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
   };
 
   const navClass = isPublic
-    ? "relative bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-white/10 sticky top-0 z-50"
+    ? "fixed inset-x-0 top-0 z-[110] border-b border-indigo-200/50 bg-white/70 shadow-[0_18px_42px_-30px_rgba(37,99,235,0.75)] backdrop-blur-2xl dark:border-indigo-300/20 dark:bg-slate-950/70"
     : isPrivileged
-      ? "relative bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-white/10 sticky top-0 z-50"
-    : "relative bg-white/85 dark:bg-gray-900/80 backdrop-blur-xl border-b border-white/60 dark:border-white/10 sticky top-0 z-50 shadow-[0_12px_30px_-20px_rgba(79,70,229,0.6)]";
+      ? "fixed inset-x-0 top-0 z-[110] bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-white/10"
+    : "fixed inset-x-0 top-0 z-[110] bg-white/85 dark:bg-gray-900/80 backdrop-blur-xl border-b border-white/60 dark:border-white/10 shadow-[0_12px_30px_-20px_rgba(79,70,229,0.6)]";
   const isAdminUsersRoute =
     location.pathname.startsWith("/admin-dashboard/user-management") ||
     location.pathname.startsWith("/admin-dashboard/organizer-management") ||
     location.pathname.startsWith("/admin-dashboard/coordinator-management");
+  const isAdminSystemRoute = location.pathname.startsWith("/admin-dashboard/system-oversight");
+  const isAdminCertificatesRoute = location.pathname.startsWith("/admin-dashboard/certificates-audit");
+  const isAdminSecurityRoute = location.pathname.startsWith("/admin-dashboard/security-reports");
   const isAdminNotificationsRoute = location.pathname.startsWith("/admin-dashboard/notifications");
   const chromeMotion = prefersReducedMotion
     ? {
@@ -204,13 +236,14 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
     : { duration: 0.35, ease: [0.22, 1, 0.36, 1] };
 
   return (
-    <motion.nav
-      key={location.pathname}
-      initial={chromeMotion.initial}
-      animate={chromeMotion.animate}
-      transition={chromeTransition}
-      className={navClass}
-    >
+    <>
+      <motion.nav
+        key={location.pathname}
+        initial={chromeMotion.initial}
+        animate={chromeMotion.animate}
+        transition={chromeTransition}
+        className={navClass}
+      >
       {!isPublic && !isPrivileged && (
         <>
           <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent pointer-events-none" />
@@ -233,36 +266,55 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
       )}
       {isPublic && !isPrivileged && (
         <>
-          <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 opacity-80 animate-nav-beam" />
-          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <span className="nav-public-aurora nav-public-aurora--one" />
+            <span className="nav-public-aurora nav-public-aurora--two" />
+            <span className="nav-public-grid" />
+            <span className="nav-public-noise" />
+          </div>
+          <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-fuchsia-500 opacity-80 animate-nav-beam" />
+          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-indigo-500/60 to-transparent" />
         </>
       )}
-      <div className="max-w-[1400px] mx-auto px-6 lg:px-10">
+      <div className="relative max-w-[1400px] mx-auto px-6 lg:px-10">
         <div className="flex items-center justify-between h-[72px]">
           
           {/* LEFT SIDE: Logo & Desktop Nav */}
           <div className="flex items-center gap-4">
             {/* Logo - Links to Home */}
-            <div className="flex-shrink-0 flex items-center cursor-pointer" onClick={() => handleNavClick('home')}>
-              <span className="font-extrabold text-2xl tracking-tight relative">
+            <div
+              className={`flex-shrink-0 flex items-center cursor-pointer ${isPublic ? "group" : ""}`}
+              onClick={() => handleNavClick('home')}
+            >
+              <span
+                className={`font-extrabold text-2xl tracking-tight relative ${isPublic ? "nav-public-logo-shell" : ""}`}
+              >
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 animate-nav-gradient">
                   EventMate
                 </span>
                 <span className="absolute -left-3 -top-3 h-6 w-6 rounded-full bg-indigo-400/25 blur-lg animate-logo-glow" />
+                {isPublic && (
+                  <>
+                    <span className="nav-public-logo-orbit" />
+                    <span className="nav-public-logo-sheen" />
+                  </>
+                )}
               </span>
             </div>
 
             {/* Desktop Navigation Links */}
             {!isPublic && !isPrivileged && (
               <div className="hidden sm:ml-10 sm:flex sm:space-x-8">
-                <button
-                  onClick={() => handleNavClick('home')}
-                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-all duration-200 ${isActive('home')}`}
-                >
-                  Home
-                </button>
                 {isCoordinator && (
                   <>
+                    <Link
+                      to="/coordinator-dashboard"
+                      className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-all duration-200 ${
+                        isActive("home")
+                      }`}
+                    >
+                      Home
+                    </Link>
                     <Link
                       to="/coordinator-dashboard/contact-admin"
                       className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-all duration-200 ${
@@ -273,27 +325,15 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                     >
                       Contact Admin
                     </Link>
-                    <Link
-                      to="/coordinator-dashboard/profile"
-                      className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-all duration-200 ${
-                        location.pathname.startsWith("/coordinator-dashboard/profile")
-                          ? "text-purple-600 dark:text-indigo-300 border-b-2 border-purple-600 dark:border-indigo-300"
-                          : "text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-indigo-300 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-white/20"
-                      }`}
-                    >
-                      Profile
-                    </Link>
-                    <Link
-                      to="/coordinator-dashboard/registrations"
-                      className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-all duration-200 ${
-                        location.pathname.startsWith("/coordinator-dashboard/registrations")
-                          ? "text-purple-600 dark:text-indigo-300 border-b-2 border-purple-600 dark:border-indigo-300"
-                          : "text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-indigo-300 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-white/20"
-                      }`}
-                    >
-                      Registrations
-                    </Link>
                   </>
+                )}
+                {!isCoordinator && (
+                  <button
+                    onClick={() => handleNavClick('home')}
+                    className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-all duration-200 ${isActive('home')}`}
+                  >
+                    Home
+                  </button>
                 )}
                 {isStudent && (
                   <>
@@ -322,7 +362,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
           </div>
 
           {isPublic && !isPrivileged && (
-            <div className="hidden md:flex flex-1 items-center justify-center gap-8">
+            <div className="hidden md:flex flex-1 items-center justify-center gap-3 lg:gap-5">
               {[
                 { label: "Home", to: "/" , key: "home" },
                 { label: "Events", to: "/#events", key: "events" },
@@ -337,13 +377,16 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                   <Link
                     key={item.key}
                     to={item.to}
-                    className={`relative text-sm font-medium transition-all duration-300 ${
-                      isCurrent ? "text-indigo-600 dark:text-indigo-300" : "text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-300"
+                    className={`group relative rounded-full px-4 py-2 text-sm font-semibold tracking-[0.02em] transition-all duration-300 ${
+                      isCurrent
+                        ? "text-indigo-700 dark:text-indigo-200 bg-white/85 dark:bg-indigo-500/20 shadow-[0_14px_30px_-22px_rgba(79,70,229,0.85)]"
+                        : "text-gray-700 dark:text-gray-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-white/65 dark:hover:bg-indigo-500/10"
                     }`}
                   >
+                    <span className={`absolute inset-0 rounded-full transition-opacity duration-300 ${isCurrent ? "opacity-100 nav-public-link-ambient" : "opacity-0 group-hover:opacity-100 nav-public-link-ambient"}`} />
                     <span className="relative z-10">{item.label}</span>
                     <span
-                      className={`absolute -bottom-2 left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 transition-all duration-300 ${
+                      className={`absolute -bottom-1 left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-fuchsia-500 transition-all duration-300 ${
                         isCurrent ? "opacity-100 scale-100" : "opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100"
                       }`}
                     />
@@ -374,9 +417,9 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
               </Link>
 
               <Link
-                to="/admin-dashboard#system"
+                to="/admin-dashboard/system-oversight"
                 className={`group relative text-sm font-medium transition-all duration-300 ${
-                  location.hash === "#system"
+                  isAdminSystemRoute
                     ? "text-indigo-600 dark:text-indigo-300"
                     : "text-gray-600 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-300"
                 }`}
@@ -384,7 +427,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                 <span className="relative z-10">System Oversight</span>
                 <span
                   className={`absolute -bottom-2 left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500 transition-all duration-300 ${
-                    location.hash === "#system"
+                    isAdminSystemRoute
                       ? "opacity-100 scale-100"
                       : "opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100"
                   }`}
@@ -456,9 +499,9 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
               </div>
 
               <Link
-                to="/admin-dashboard#certificates"
+                to="/admin-dashboard/certificates-audit"
                 className={`group relative text-sm font-medium transition-all duration-300 ${
-                  location.hash === "#certificates"
+                  isAdminCertificatesRoute
                     ? "text-indigo-600 dark:text-indigo-300"
                     : "text-gray-600 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-300"
                 }`}
@@ -466,7 +509,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                 <span className="relative z-10">Certificates & Audit Logs</span>
                 <span
                   className={`absolute -bottom-2 left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500 transition-all duration-300 ${
-                    location.hash === "#certificates"
+                    isAdminCertificatesRoute
                       ? "opacity-100 scale-100"
                       : "opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100"
                   }`}
@@ -474,9 +517,9 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
               </Link>
 
               <Link
-                to="/admin-dashboard#security"
+                to="/admin-dashboard/security-reports"
                 className={`group relative text-sm font-medium transition-all duration-300 ${
-                  location.hash === "#security"
+                  isAdminSecurityRoute
                     ? "text-indigo-600 dark:text-indigo-300"
                     : "text-gray-600 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-300"
                 }`}
@@ -484,7 +527,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                 <span className="relative z-10">Security & Reports</span>
                 <span
                   className={`absolute -bottom-2 left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500 transition-all duration-300 ${
-                    location.hash === "#security"
+                    isAdminSecurityRoute
                       ? "opacity-100 scale-100"
                       : "opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100"
                   }`}
@@ -514,14 +557,12 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
             <div className="hidden md:flex flex-1 items-center justify-center gap-8">
               {[
                 { label: "Home", to: "/organizer-dashboard", key: "home" },
-                { label: "My Events", to: "/organizer-dashboard#my-events", key: "my-events" },
                 { label: "Coordinators", to: "/organizer-dashboard/coordinator-management", key: "coordinator-management" },
                 { label: "Contact Admin", to: "/organizer-dashboard/contact-admin", key: "contact-admin" },
                 { label: "Profile", to: "/organizer-dashboard/profile", key: "profile" },
               ].map((item) => {
                 const isCurrent =
-                  (item.key === "home" && location.pathname === "/organizer-dashboard" && !location.hash) ||
-                  (item.key === "my-events" && location.hash === "#my-events") ||
+                  (item.key === "home" && location.pathname === "/organizer-dashboard") ||
                   (item.key === "coordinator-management" && location.pathname.startsWith("/organizer-dashboard/coordinator-management")) ||
                   (item.key === "contact-admin" && location.pathname.startsWith("/organizer-dashboard/contact-admin")) ||
                   (item.key === "profile" && location.pathname.startsWith("/organizer-dashboard/profile"));
@@ -551,11 +592,11 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                   aria-label="Notifications"
                 >
                   <Bell className="h-5 w-5" />
-                  {adminUnreadCount > 0 && (
+                  {roleUnreadCount > 0 && (
                     <>
                       <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-indigo-500 animate-admin-ping" />
                       <span className="absolute -top-1.5 -right-1.5 min-w-[18px] rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white text-center">
-                        {adminUnreadCount > 99 ? "99+" : adminUnreadCount}
+                        {roleUnreadCount > 99 ? "99+" : roleUnreadCount}
                       </span>
                     </>
                   )}
@@ -590,9 +631,22 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
               </>
             ) : isOrganizer ? (
               <>
-                <button className="p-2 rounded-full text-gray-700 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-300 transition" aria-label="Notifications">
+                <Link
+                  to="/organizer-dashboard/notifications"
+                  className={`relative p-2 rounded-full transition ${
+                    location.pathname.startsWith("/organizer-dashboard/notifications")
+                      ? "text-indigo-600 dark:text-indigo-300"
+                      : "text-gray-700 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-300"
+                  }`}
+                  aria-label="Notifications"
+                >
                   <Bell className="h-5 w-5" />
-                </button>
+                  {roleUnreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center px-1">
+                      {roleUnreadCount > 99 ? "99+" : roleUnreadCount}
+                    </span>
+                  )}
+                </Link>
                 <button
                   type="button"
                   aria-label="Toggle theme"
@@ -620,23 +674,43 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
               </>
             ) : isAuthenticated ? (
               <>
-                {/* Search Bar */}
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-4 w-4 text-gray-400 group-focus-within:text-purple-600 dark:text-gray-500 dark:group-focus-within:text-indigo-300 transition-colors" />
+                {!isCoordinator && (
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-gray-400 group-focus-within:text-purple-600 dark:text-gray-500 dark:group-focus-within:text-indigo-300 transition-colors" />
+                    </div>
+                    <input 
+                      type="text" 
+                      className="block w-48 lg:w-64 pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-full leading-5 bg-gray-50 dark:bg-gray-800/70 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:bg-white dark:focus:bg-gray-800 focus:ring-1 focus:ring-purple-500 dark:focus:ring-indigo-400 focus:border-purple-500 dark:focus:border-indigo-400 sm:text-sm transition-all duration-200" 
+                      placeholder="Search events..."
+                    />
                   </div>
-                  <input 
-                    type="text" 
-                    className="block w-48 lg:w-64 pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-full leading-5 bg-gray-50 dark:bg-gray-800/70 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:bg-white dark:focus:bg-gray-800 focus:ring-1 focus:ring-purple-500 dark:focus:ring-indigo-400 focus:border-purple-500 dark:focus:border-indigo-400 sm:text-sm transition-all duration-200" 
-                    placeholder="Search events..."
-                  />
-                </div>
+                )}
 
-                {/* Notifications Bell */}
-                <button className="p-1 rounded-full text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-indigo-300 focus:outline-none relative">
-                  <Bell className="h-6 w-6" />
-                  <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-900"></span>
-                </button>
+                {isCoordinator || isOrganizer ? (
+                  <Link
+                    to={isCoordinator ? "/coordinator-dashboard/notifications" : "/organizer-dashboard/notifications"}
+                    className={`p-1 rounded-full focus:outline-none relative ${
+                      (isCoordinator && location.pathname.startsWith("/coordinator-dashboard/notifications")) ||
+                      (isOrganizer && location.pathname.startsWith("/organizer-dashboard/notifications"))
+                        ? "text-indigo-600 dark:text-indigo-300"
+                        : "text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-indigo-300"
+                    }`}
+                    aria-label="Notifications"
+                  >
+                    <Bell className="h-6 w-6" />
+                    {roleUnreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center px-1">
+                        {roleUnreadCount > 99 ? "99+" : roleUnreadCount}
+                      </span>
+                    )}
+                  </Link>
+                ) : (
+                  <button className="p-1 rounded-full text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-indigo-300 focus:outline-none relative">
+                    <Bell className="h-6 w-6" />
+                    <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-900"></span>
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -676,7 +750,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                       </div>
                       
                       <Link to={currentProfilePath} className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5">Your Profile</Link>
-                      <Link to={currentCustomizationPath} className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5">Customize Avatar</Link>
                       <Link to="/settings" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5">Settings</Link>
                       <button
                         onClick={() => { onLogout?.(); setIsUserMenuOpen(false); }}
@@ -692,13 +765,21 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
               <>
                 <Link
                   to="/login"
-                  className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-indigo-300 transition"
+                  className={`px-3 py-2 text-sm font-medium transition ${
+                    isPublic
+                      ? "rounded-full border border-indigo-200/70 bg-white/75 text-slate-700 shadow-[0_10px_24px_-20px_rgba(37,99,235,0.9)] hover:-translate-y-0.5 hover:border-indigo-300 hover:text-indigo-700 dark:border-indigo-300/30 dark:bg-slate-900/70 dark:text-indigo-100 dark:hover:border-indigo-300/50 dark:hover:text-white"
+                      : "text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-indigo-300"
+                  }`}
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
-                  className="relative px-5 py-2 rounded-full text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-600 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition"
+                  className={`relative px-5 py-2 rounded-full text-sm font-semibold text-white transition ${
+                    isPublic
+                      ? "public-signup-cta bg-gradient-to-r from-cyan-500 via-indigo-500 to-fuchsia-500 shadow-[0_14px_30px_-18px_rgba(79,70,229,0.85)] hover:shadow-[0_18px_36px_-18px_rgba(14,165,233,0.95)] hover:-translate-y-0.5"
+                      : "bg-gradient-to-r from-indigo-500 to-purple-600 shadow-md hover:shadow-xl hover:-translate-y-0.5"
+                  }`}
                 >
                   <span className="relative z-10">Sign Up</span>
                   <span className="absolute inset-0 rounded-full opacity-0 hover:opacity-100 transition login-cta-sheen" />
@@ -707,7 +788,7 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                   type="button"
                   aria-label="Toggle theme"
                   onClick={toggleTheme}
-                  className={themeToggleClass}
+                  className={isPublic ? `${themeToggleClass} public-theme-toggle` : themeToggleClass}
                 >
                   {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </button>
@@ -729,14 +810,14 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
 
       {/* --- MOBILE MENU PANEL --- */}
       {isMobileMenuOpen && (
-        <div className="sm:hidden bg-white/95 dark:bg-gray-900/95 border-b border-gray-200 dark:border-white/10 backdrop-blur">
+        <div className={`sm:hidden border-b border-gray-200 dark:border-white/10 backdrop-blur ${isPublic ? "nav-public-mobile-panel bg-white/88 dark:bg-slate-950/88" : "bg-white/95 dark:bg-gray-900/95"}`}>
           <div className="pt-2 pb-3 space-y-1">
             {isAdmin ? (
               <>
                 <Link to="/admin-dashboard" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
                   Home
                 </Link>
-                <Link to="/admin-dashboard#system" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
+                <Link to="/admin-dashboard/system-oversight" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
                   System Oversight
                 </Link>
                 <Link to="/admin-dashboard/user-management" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
@@ -751,10 +832,10 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
                 <Link to="/admin-dashboard/notifications" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
                   Notifications
                 </Link>
-                <Link to="/admin-dashboard#certificates" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
+                <Link to="/admin-dashboard/certificates-audit" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
                   Certificates & Audit Logs
                 </Link>
-                <Link to="/admin-dashboard#security" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
+                <Link to="/admin-dashboard/security-reports" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
                   Security & Reports
                 </Link>
               </>
@@ -762,9 +843,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
               <>
                 <Link to="/organizer-dashboard" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
                   Home
-                </Link>
-                <Link to="/organizer-dashboard#my-events" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
-                  My Events
                 </Link>
                 <Link to="/organizer-dashboard/coordinator-management" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
                   Coordinators
@@ -778,19 +856,18 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
               </>
             ) : (
               <>
-                <button onClick={() => handleNavClick('home')} className="w-full text-left block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">Home</button>
                 {isCoordinator && (
                   <>
+                    <Link to="/coordinator-dashboard" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
+                      Home
+                    </Link>
                     <Link to="/coordinator-dashboard/contact-admin" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
                       Contact Admin
                     </Link>
-                    <Link to="/coordinator-dashboard/profile" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
-                      Profile
-                    </Link>
-                    <Link to="/coordinator-dashboard/registrations" className="w-full block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
-                      Registrations
-                    </Link>
                   </>
+                )}
+                {!isCoordinator && (
+                  <button onClick={() => handleNavClick('home')} className="w-full text-left block pl-3 pr-4 py-3 border-l-4 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">Home</button>
                 )}
                 {isStudent && (
                   <>
@@ -887,13 +964,109 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
       {isPublic && (
         <style jsx>{`
         .animate-nav-gradient {
-          background-size: 200% 200%;
-          animation: navGradient 6s ease infinite;
+          background-size: 220% 220%;
+          animation: navGradient 7s ease infinite;
         }
         .login-cta-sheen {
           background: linear-gradient(120deg, transparent, rgba(255,255,255,0.7), transparent);
           background-size: 200% 100%;
           animation: ctaSheen 3.2s ease infinite;
+        }
+        .nav-public-aurora {
+          position: absolute;
+          border-radius: 9999px;
+          filter: blur(32px);
+          opacity: 0.45;
+          pointer-events: none;
+          animation: navAuroraFloat 7.8s ease-in-out infinite;
+        }
+        .nav-public-aurora--one {
+          width: 260px;
+          height: 220px;
+          top: -140px;
+          left: 8%;
+          background: radial-gradient(circle, rgba(56, 189, 248, 0.42), transparent 70%);
+        }
+        .nav-public-aurora--two {
+          width: 280px;
+          height: 240px;
+          top: -148px;
+          right: 7%;
+          background: radial-gradient(circle, rgba(168, 85, 247, 0.35), transparent 70%);
+          animation-delay: -2.7s;
+        }
+        .nav-public-grid {
+          position: absolute;
+          inset: 0;
+          opacity: 0.12;
+          background-image:
+            linear-gradient(to right, rgba(99, 102, 241, 0.12) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(99, 102, 241, 0.1) 1px, transparent 1px);
+          background-size: 30px 30px;
+          mask-image: linear-gradient(to bottom, #000, transparent 85%);
+          animation: navGridFlow 14s linear infinite;
+        }
+        .nav-public-noise {
+          position: absolute;
+          inset: 0;
+          opacity: 0.06;
+          background-image: radial-gradient(rgba(255,255,255,0.25) 0.4px, transparent 0.4px);
+          background-size: 3px 3px;
+        }
+        .nav-public-logo-shell {
+          display: inline-flex;
+          align-items: center;
+          border-radius: 9999px;
+          padding: 0.45rem 0.95rem;
+          border: 1px solid rgba(99, 102, 241, 0.2);
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(224, 242, 254, 0.58));
+          box-shadow: 0 14px 32px -22px rgba(37, 99, 235, 0.78);
+        }
+        .dark .nav-public-logo-shell {
+          border-color: rgba(129, 140, 248, 0.3);
+          background: linear-gradient(140deg, rgba(15, 23, 42, 0.82), rgba(30, 41, 59, 0.66));
+          box-shadow: 0 14px 30px -22px rgba(99, 102, 241, 0.65);
+        }
+        .nav-public-logo-orbit {
+          position: absolute;
+          inset: -6px;
+          border-radius: inherit;
+          border: 1px dashed rgba(99, 102, 241, 0.34);
+          animation: navLogoOrbit 8.2s linear infinite;
+        }
+        .nav-public-logo-sheen {
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(120deg, transparent, rgba(255,255,255,0.62), transparent);
+          opacity: 0;
+          pointer-events: none;
+        }
+        .group:hover .nav-public-logo-sheen {
+          opacity: 1;
+          animation: navLogoSheen 1.1s ease;
+        }
+        .nav-public-link-ambient {
+          background: radial-gradient(circle at 50% 35%, rgba(56, 189, 248, 0.22), rgba(129, 140, 248, 0.1), transparent 74%);
+          pointer-events: none;
+        }
+        .public-signup-cta {
+          background-size: 160% 160%;
+          animation: navCtaPulse 5.8s ease-in-out infinite;
+        }
+        .public-theme-toggle {
+          border-color: rgba(99, 102, 241, 0.34);
+          background: linear-gradient(145deg, rgba(255,255,255,0.84), rgba(224,231,255,0.7));
+          box-shadow: 0 10px 24px -18px rgba(37, 99, 235, 0.9);
+        }
+        .dark .public-theme-toggle {
+          border-color: rgba(99, 102, 241, 0.45);
+          background: linear-gradient(145deg, rgba(30, 41, 59, 0.74), rgba(15, 23, 42, 0.76));
+        }
+        .nav-public-mobile-panel {
+          background-image:
+            radial-gradient(circle at 10% 0%, rgba(56, 189, 248, 0.18), transparent 42%),
+            radial-gradient(circle at 90% 0%, rgba(168, 85, 247, 0.16), transparent 40%);
         }
         .animate-nav-beam {
           animation: navBeam 6s ease-in-out infinite;
@@ -907,10 +1080,36 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
+        @keyframes navAuroraFloat {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.38; }
+          50% { transform: translate3d(0, 10px, 0) scale(1.08); opacity: 0.72; }
+        }
+        @keyframes navGridFlow {
+          0% { transform: translate3d(0, 0, 0); }
+          100% { transform: translate3d(30px, 30px, 0); }
+        }
+        @keyframes navLogoOrbit {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes navLogoSheen {
+          0% { transform: translateX(-60%); }
+          100% { transform: translateX(70%); }
+        }
         @keyframes ctaSheen {
           0% { background-position: 0% 0%; opacity: 0.2; }
           50% { background-position: 100% 0%; opacity: 0.7; }
           100% { background-position: 0% 0%; opacity: 0.2; }
+        }
+        @keyframes navCtaPulse {
+          0%, 100% {
+            background-position: 0% 50%;
+            box-shadow: 0 14px 30px -18px rgba(79, 70, 229, 0.82);
+          }
+          50% {
+            background-position: 100% 50%;
+            box-shadow: 0 16px 34px -18px rgba(14, 165, 233, 0.95);
+          }
         }
         @keyframes navBeam {
           0% { filter: hue-rotate(0deg); opacity: 0.7; }
@@ -961,7 +1160,9 @@ const Navbar = ({ activePage, setActivePage, user, onLogout, variant = "auto" })
         }
       `}</style>
       )}
-    </motion.nav>
+      </motion.nav>
+      <div aria-hidden="true" className="h-[72px] shrink-0" />
+    </>
   );
 };
 

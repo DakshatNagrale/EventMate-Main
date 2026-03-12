@@ -1,49 +1,57 @@
 import cron from "node-cron";
 import Event from "../models/Event.model.js";
 
+const buildEventEndDateTime = (endDate, endTime) => {
+  if (!endDate || !endTime) return null;
+
+  const [hours, minutes] = String(endTime).split(":").map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+
+  const rawDate = new Date(endDate);
+  if (Number.isNaN(rawDate.getTime())) return null;
+
+  // Preserve the stored calendar day and merge it with schedule end time.
+  return new Date(
+    rawDate.getUTCFullYear(),
+    rawDate.getUTCMonth(),
+    rawDate.getUTCDate(),
+    hours,
+    minutes,
+    0,
+    0
+  );
+};
+
 const autoCompleteEvents = async () => {
   try {
     const now = new Date();
-
-    // Find all Published events
     const publishedEvents = await Event.find({ status: "Published" });
 
     for (const event of publishedEvents) {
-      const { endDate, endTime } = event.schedule;
-
-      if (!endDate || !endTime) continue;
-
-      // Combine endDate + endTime into one DateTime
-      // endTime is "16:00" format
-      const [hours, minutes] = endTime.split(":").map(Number);
-
-      const eventEndDateTime = new Date(endDate);
-      eventEndDateTime.setHours(hours, minutes, 0, 0);
-
-      // Add 6 hours
-      const completionTime = new Date(
-        eventEndDateTime.getTime() + 6 * 60 * 60 * 1000
+      const eventEndDateTime = buildEventEndDateTime(
+        event.schedule?.endDate,
+        event.schedule?.endTime
       );
 
-      // If current time has passed completionTime → mark Completed
-      if (now >= completionTime) {
-  await Event.findByIdAndUpdate(event._id, { status: "Completed" });
-  console.log(`✅ Auto completed event: ${event.title}`);
-}
+      if (!eventEndDateTime) continue;
+
+      if (now >= eventEndDateTime) {
+        await Event.findByIdAndUpdate(event._id, {
+          status: "Completed",
+          updatedAt: now
+        });
+        console.log(`[AUTO_COMPLETE] Event marked completed: ${event.title}`);
+      }
     }
   } catch (error) {
-    console.error("❌ Cron job error:", error.message);
+    console.error("[AUTO_COMPLETE] Cron job error:", error.message);
   }
 };
 
 const startCronJobs = () => {
-  // Runs every hour at minute 0
-  cron.schedule("0 * * * *", () => {
-    console.log("⏰ Running auto complete events cron job...");
-    autoCompleteEvents();
-  });
-
-  console.log("✅ Cron jobs started");
+  // Run every minute so events are completed close to their end date/time.
+  cron.schedule("* * * * *", autoCompleteEvents);
+  console.log("[AUTO_COMPLETE] Cron jobs started");
 };
 
 export default startCronJobs;

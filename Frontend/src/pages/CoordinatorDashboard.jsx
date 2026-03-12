@@ -1,393 +1,738 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import {
-  CalendarCheck2,
+  BadgeCheck,
+  CalendarDays,
+  CircleCheck,
   Clock3,
-  Link2,
-  LogOut,
-  MessageSquareMore,
-  ShieldCheck,
-  Sparkles,
-  Users2,
   Loader2,
+  MapPin,
+  MessageSquareMore,
+  QrCode,
   RefreshCcw,
+  Search,
+  Sparkles,
+  Star,
+  Users2,
+  XCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getStoredUser } from "../lib/auth";
-import { logoutUser } from "../lib/logout";
 import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
 import { extractEventList } from "../lib/backendAdapters";
+import { getStoredUser } from "../lib/auth";
 
-const normalizeId = (value) => String(value || "").trim();
-const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const FALLBACK_POSTERS = [
+  "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1531058020387-3be344556be6?auto=format&fit=crop&w=900&q=80",
+];
 
-const deriveStatus = (event) => {
-  const workflow = String(event?.status || "");
-  if (workflow === "Completed" || workflow === "Cancelled") return "completed";
+const STAGE_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "live", label: "Live" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "completed", label: "Completed" },
+  { key: "cancelled", label: "Cancelled" },
+];
 
-  const start = new Date(event?.schedule?.startDate || 0).getTime();
-  const end = new Date(event?.schedule?.endDate || event?.schedule?.startDate || 0).getTime();
-  const now = Date.now();
-
-  if (Number.isFinite(end) && now > end) return "completed";
-  if (Number.isFinite(start) && now >= start && now <= end) return "current";
-  return "upcoming";
+const WORKFLOW_STYLE = {
+  Draft: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+  Published: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+  Completed: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
+  Cancelled: "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300",
 };
 
-const formatDateTime = (value) => {
-  if (!value) return "N/A";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "N/A";
-  return date.toLocaleString([], { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+const STAGE_STYLE = {
+  live: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+  upcoming: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300",
+  completed: "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300",
+  cancelled: "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300",
+};
+
+const STAGE_LABEL = {
+  live: "Live Now",
+  upcoming: "Upcoming",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+const normalizeId = (value) => String(value || "").trim();
+
+const toNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseDate = (value) => {
+  const parsed = new Date(value || 0);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
 const formatDate = (value) => {
-  if (!value) return "N/A";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "N/A";
+  const date = parseDate(value);
+  if (!date) return "Date TBD";
   return date.toLocaleDateString([], { year: "numeric", month: "short", day: "2-digit" });
 };
 
-const extractAttendanceToken = (rawValue) => {
-  const value = String(rawValue || "").trim();
-  if (!value) return "";
-
-  try {
-    const parsedUrl = new URL(value);
-    const queryToken = String(parsedUrl.searchParams.get("token") || "").trim();
-    if (queryToken) return queryToken;
-
-    const parts = parsedUrl.pathname.split("/").filter(Boolean);
-    const attendanceIndex = parts.findIndex((item) => item.toLowerCase() === "attendance");
-    if (attendanceIndex >= 0 && parts[attendanceIndex + 1]) {
-      return decodeURIComponent(parts[attendanceIndex + 1]);
-    }
-
-    return decodeURIComponent(parts[parts.length - 1] || "");
-  } catch {
-    return value.replace(/^.*\/attendance\//i, "").trim();
-  }
+const formatDateTime = (value) => {
+  const date = parseDate(value);
+  if (!date) return "just now";
+  return date.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 };
+
+const formatTimeRange = (schedule) => {
+  const startTime = String(schedule?.startTime || "").trim();
+  const endTime = String(schedule?.endTime || "").trim();
+  if (startTime && endTime) return `${startTime} - ${endTime}`;
+  if (startTime) return startTime;
+
+  const start = parseDate(schedule?.startDate);
+  const end = parseDate(schedule?.endDate);
+  if (!start) return "Time TBD";
+
+  const startText = start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (!end) return startText;
+  const endText = end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `${startText} - ${endText}`;
+};
+
+const formatRelative = (value) => {
+  const date = parseDate(value);
+  if (!date) return "just now";
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.max(1, Math.floor(diffMs / 60000));
+  if (minutes < 60) return `${minutes} mins ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hours ago`;
+  return `${Math.floor(hours / 24)} days ago`;
+};
+
+const getEventAttendance = (event) => Math.max(0, Math.floor(toNumber(event?.attendance?.totalPresent) || 0));
+
+const getEventRating = (event) =>
+  toNumber(
+    event?.feedback?.averageRating ??
+      event?.averageRating ??
+      event?.ratingAverage ??
+      event?.rating?.average
+  );
+
+const getFeedbackCount = (event) =>
+  Math.max(
+    0,
+    Math.floor(
+      toNumber(
+        event?.feedbackCount ?? event?.totalFeedback ?? event?.feedback?.count ?? event?.feedback?.total ?? 0
+      ) || 0
+    )
+  );
+
+const deriveStage = (event) => {
+  const workflow = String(event?.status || "").trim();
+  if (workflow === "Cancelled") return "cancelled";
+  if (workflow === "Completed") return "completed";
+
+  const start = parseDate(event?.schedule?.startDate);
+  const end = parseDate(event?.schedule?.endDate || event?.schedule?.startDate);
+  const now = new Date();
+
+  if (start && end && now >= start && now <= end) return "live";
+  if (end && now > end) return "completed";
+  return "upcoming";
+};
+
+const sortByRecent = (items) =>
+  [...items].sort(
+    (a, b) =>
+      new Date(b?.updatedAt || b?.createdAt || 0).getTime() -
+      new Date(a?.updatedAt || a?.createdAt || 0).getTime()
+  );
 
 export default function CoordinatorDashboard() {
   const navigate = useNavigate();
   const user = getStoredUser();
 
-  const [assignedEvents, setAssignedEvents] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [attendanceInput, setAttendanceInput] = useState("");
-  const [markingAttendance, setMarkingAttendance] = useState(false);
-  const [attendanceMessage, setAttendanceMessage] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
 
-  const fetchAssignedEvents = async () => {
-    setLoading(true);
-    setError(null);
+  const loadEvents = async ({ silent = false } = {}) => {
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError("");
 
     try {
-      const response = await api({ ...SummaryApi.get_public_events });
-      const events = extractEventList(response.data);
+      const response = await api({
+        ...SummaryApi.get_my_assigned_events,
+        skipCache: true,
+      });
 
-      const coordinatorId = normalizeId(user?._id);
-      const coordinatorEmail = normalizeEmail(user?.email);
-
-      const assigned = events
-        .filter((event) => {
-          const coordinators = Array.isArray(event?.studentCoordinators) ? event.studentCoordinators : [];
-          return coordinators.some(
-            (item) =>
-              normalizeId(item?.coordinatorId) === coordinatorId ||
-              normalizeEmail(item?.email) === coordinatorEmail
-          );
-        })
-        .map((event) => ({
+      const rows = extractEventList(response.data);
+      const assigned = rows
+        .map((event, index) => ({
           ...event,
-          derivedStatus: deriveStatus(event),
-        }))
-        .sort((a, b) => new Date(a?.schedule?.startDate || 0) - new Date(b?.schedule?.startDate || 0));
+          eventId: normalizeId(event?._id),
+          stage: deriveStage(event),
+          status: String(event?.status || "Published"),
+          title: event?.title || "Untitled Event",
+          category: event?.category || "General",
+          venue: event?.venue?.location || "Venue TBD",
+          schedule: event?.schedule || {},
+          startDate: event?.schedule?.startDate || event?.createdAt || null,
+          updatedAt: event?.updatedAt || event?.createdAt || null,
+          description: event?.description || "Coordinate attendance flow for this event.",
+          posterUrl: String(event?.posterUrl || "").trim() || FALLBACK_POSTERS[index % FALLBACK_POSTERS.length],
+          attendance: getEventAttendance(event),
+          rating: getEventRating(event),
+          feedbackCount: getFeedbackCount(event),
+        }));
 
-      setAssignedEvents(assigned);
+      setEvents(sortByRecent(assigned));
     } catch (fetchError) {
-      setAssignedEvents([]);
-      setError(fetchError.response?.data?.message || "Unable to load coordinator dashboard data.");
+      setEvents([]);
+      setError(fetchError.response?.data?.message || "Unable to load assigned events.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchAssignedEvents();
-  }, [user?._id]);
-
-  const handleLogout = async () => {
-    await logoutUser();
-    navigate("/login", { replace: true });
-  };
-
-  const handleMarkAttendance = async (event) => {
-    event.preventDefault();
-    setAttendanceMessage(null);
-
-    const token = extractAttendanceToken(attendanceInput);
-    if (!token) {
-      setAttendanceMessage({ type: "error", text: "Paste a valid attendance token or attendance URL." });
-      return;
-    }
-
-    setMarkingAttendance(true);
-    try {
-      const response = await api({
-        ...SummaryApi.mark_attendance_by_token,
-        url: SummaryApi.mark_attendance_by_token.url.replace(":token", encodeURIComponent(token)),
-      });
-
-      const payload = response.data?.data || {};
-      const participantName = payload.participantName ? ` Participant: ${payload.participantName}.` : "";
-      const eventName = payload.eventName ? ` Event: ${payload.eventName}.` : "";
-
-      setAttendanceMessage({
-        type: "success",
-        text: `${response.data?.message || "Attendance marked successfully."}${participantName}${eventName}`.trim(),
-      });
-      setAttendanceInput("");
-    } catch (attendanceError) {
-      setAttendanceMessage({
-        type: "error",
-        text: attendanceError.response?.data?.message || "Unable to mark attendance for this token.",
-      });
-    } finally {
-      setMarkingAttendance(false);
-    }
-  };
+    loadEvents();
+  }, [user?._id, user?.email]);
 
   const metrics = useMemo(() => {
-    const eventsAssigned = assignedEvents.length;
-    const studentsCapacity = assignedEvents.reduce(
-      (sum, event) => sum + Number(event?.registration?.maxParticipants || 0),
-      0
-    );
-    const openRegistrations = assignedEvents.filter(
-      (event) => Boolean(event?.registration?.isOpen) && String(event?.status || "") === "Published"
-    ).length;
-    const liveNow = assignedEvents.filter((event) => event.derivedStatus === "current").length;
+    const workflow = {
+      live: 0,
+      upcoming: 0,
+      completed: 0,
+      cancelled: 0,
+    };
+
+    let attendance = 0;
+    let feedbackTotal = 0;
+    const ratings = [];
+
+    events.forEach((event) => {
+      workflow[event.stage] = (workflow[event.stage] || 0) + 1;
+      attendance += event.attendance;
+      feedbackTotal += event.feedbackCount;
+      if (Number.isFinite(event.rating)) ratings.push(event.rating);
+    });
+
+    const averageRating = ratings.length
+      ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length
+      : null;
 
     return {
-      eventsAssigned,
-      studentsCapacity,
-      openRegistrations,
-      liveNow,
+      assigned: events.length,
+      attendance,
+      feedbackTotal,
+      averageRating,
+      workflow,
     };
-  }, [assignedEvents]);
+  }, [events]);
 
-  const tasks = useMemo(() => {
-    return assignedEvents.slice(0, 3).map((event) => ({
-      id: normalizeId(event?._id),
-      title: `Coordinate: ${event?.title || "Untitled Event"}`,
-      status: event?.registration?.isOpen ? "Registration Open" : "Registration Closed",
-      due: `Starts ${formatDate(event?.schedule?.startDate)}`,
-    }));
-  }, [assignedEvents]);
+  const activity = useMemo(() => {
+    if (!events.length) {
+      return [{ id: "a-empty", type: "status", text: "No recent activity for assigned events.", time: "just now" }];
+    }
 
-  const mostRecent = useMemo(() => {
-    if (!assignedEvents.length) return null;
-    return [...assignedEvents].sort(
-      (a, b) => new Date(b?.updatedAt || b?.createdAt || 0) - new Date(a?.updatedAt || a?.createdAt || 0)
-    )[0];
-  }, [assignedEvents]);
+    const rows = [];
+    events.slice(0, 8).forEach((event) => {
+      rows.push({
+        id: `status-${event.eventId}`,
+        type: event.stage === "live" ? "live" : "status",
+        text: `${event.title} is ${STAGE_LABEL[event.stage].toLowerCase()}.`,
+        time: formatRelative(event.updatedAt),
+      });
+
+      if (event.attendance > 0) {
+        rows.push({
+          id: `attendance-${event.eventId}`,
+          type: "attendance",
+          text: `${event.attendance} attendance marked for ${event.title}.`,
+          time: formatRelative(event.updatedAt),
+        });
+      }
+
+      if (event.feedbackCount > 0) {
+        rows.push({
+          id: `feedback-${event.eventId}`,
+          type: "feedback",
+          text: `${event.feedbackCount} feedback entries for ${event.title}.`,
+          time: formatRelative(event.updatedAt),
+        });
+      }
+    });
+
+    return rows.slice(0, 6);
+  }, [events]);
+
+  const profileProgress = useMemo(() => {
+    const fields = [
+      user?.fullName,
+      user?.email,
+      user?.mobileNumber,
+      user?.academicProfile?.branch,
+      user?.academicProfile?.year,
+      user?.professionalProfile?.department,
+      user?.avatar,
+    ];
+    const total = fields.length;
+    const completed = fields.filter((field) => String(field || "").trim()).length;
+    const percentage = Math.max(20, Math.min(100, Math.round((completed / total) * 100)));
+    const stepsLeft = Math.max(0, total - completed);
+    return { percentage, stepsLeft };
+  }, [user]);
+
+  const filterCounts = useMemo(
+    () => ({
+      all: events.length,
+      live: events.filter((event) => event.stage === "live").length,
+      upcoming: events.filter((event) => event.stage === "upcoming").length,
+      completed: events.filter((event) => event.stage === "completed").length,
+      cancelled: events.filter((event) => event.stage === "cancelled").length,
+    }),
+    [events]
+  );
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  const filteredEvents = useMemo(
+    () =>
+      events.filter((event) => {
+        const matchesFilter = activeFilter === "all" ? true : event.stage === activeFilter;
+        if (!matchesFilter) return false;
+        if (!normalizedQuery) return true;
+
+        const haystack = `${event.title} ${event.category} ${event.venue} ${event.status}`.toLowerCase();
+        return haystack.includes(normalizedQuery);
+      }),
+    [events, activeFilter, normalizedQuery]
+  );
+
+  const kpis = [
+    {
+      label: "Assigned Events",
+      value: metrics.assigned,
+      icon: CalendarDays,
+      iconClass: "bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300",
+      hint: `${metrics.workflow.upcoming} upcoming`,
+    },
+    {
+      label: "Live Right Now",
+      value: metrics.workflow.live,
+      icon: Sparkles,
+      iconClass: "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300",
+      hint: `${metrics.workflow.completed} completed`,
+    },
+    {
+      label: "Attendance Marked",
+      value: metrics.attendance,
+      icon: Users2,
+      iconClass: "bg-cyan-100 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-300",
+      hint: "Across assigned events",
+    },
+    {
+      label: "Avg Rating",
+      value: metrics.averageRating === null ? "--" : metrics.averageRating.toFixed(1),
+      icon: Star,
+      iconClass: "bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300",
+      hint: `${metrics.feedbackTotal} total feedback`,
+    },
+  ];
 
   return (
-    <div className="eventmate-page min-h-screen bg-gray-50 px-4 sm:px-6 py-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <section className="eventmate-page min-h-screen bg-slate-100/80 dark:bg-gray-900 px-4 sm:px-6 py-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="eventmate-panel relative overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-6 sm:p-7">
+          <div className="pointer-events-none absolute -right-28 -top-24 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl dark:bg-indigo-500/15" />
+          <div className="pointer-events-none absolute -left-32 bottom-0 h-56 w-56 rounded-full bg-cyan-500/15 blur-3xl dark:bg-cyan-500/10" />
+
+          <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto]">
             <div>
               <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
-                <Sparkles size={13} />
-                Coordinator Workspace
+                <BadgeCheck size={13} />
+                Coordinator Control Room
               </span>
-              <h1 className="mt-3 text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Coordinator Dashboard</h1>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-                Backend-synced view of events assigned to your coordinator account.
+              <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Coordinator Home</h1>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
+                Monitor assigned events, handle attendance scanning, and manage on-ground execution from one dashboard.
               </p>
+
+              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                  Live: {metrics.workflow.live}
+                </span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                  Upcoming: {metrics.workflow.upcoming}
+                </span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                  Completed: {metrics.workflow.completed}
+                </span>
+              </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-start justify-start gap-2 xl:justify-end">
               <button
                 type="button"
-                onClick={fetchAssignedEvents}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/10"
+                onClick={() => loadEvents({ silent: true })}
+                disabled={loading || refreshing}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-white/10 disabled:opacity-60"
               >
-                {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
+                {refreshing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
                 Refresh
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/coordinator-dashboard/contact-admin")}
+                onClick={() => navigate("/coordinator-dashboard/registrations")}
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
               >
-                <MessageSquareMore size={15} />
+                Event Workspace
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/coordinator-dashboard/contact-admin")}
+                className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-400/30 dark:text-indigo-200 dark:hover:bg-indigo-500/20"
+              >
                 Contact Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate("/coordinator-dashboard/profile")}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/10"
-              >
-                Profile
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate("/coordinator-dashboard/registrations")}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/10"
-              >
-                <Users2 size={15} />
-                Registrations
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-400/30 dark:text-red-300 dark:hover:bg-red-500/15"
-              >
-                <LogOut size={15} />
-                Logout
               </button>
             </div>
           </div>
-
-          <div className="mt-5 rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-            Signed in as <span className="font-semibold text-slate-900 dark:text-white">{user?.fullName || "Coordinator"}</span>
-            {" "}({user?.email || "coordinator@eventmate.com"})
-          </div>
         </section>
 
-        {error && (
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {kpis.map((item) => {
+            const Icon = item.icon;
+            return (
+              <article
+                key={item.label}
+                className="eventmate-kpi rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">{item.label}</p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{item.value}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.hint}</p>
+                  </div>
+                  <span className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${item.iconClass}`}>
+                    <Icon size={16} />
+                  </span>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+
+        {loading && (
+          <p className="inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
+            <Loader2 size={14} className="animate-spin" />
+            Loading coordinator workspace...
+          </p>
+        )}
+
+        {error && !loading && (
           <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300">
             {error}
           </p>
         )}
 
-        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-500 dark:text-slate-300">Events Assigned</p>
-              <CalendarCheck2 size={16} className="text-indigo-600" />
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{metrics.eventsAssigned}</p>
-          </article>
-          <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-500 dark:text-slate-300">Capacity Scope</p>
-              <Users2 size={16} className="text-emerald-600" />
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{metrics.studentsCapacity}</p>
-          </article>
-          <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-500 dark:text-slate-300">Open Registrations</p>
-              <Clock3 size={16} className="text-amber-600" />
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{metrics.openRegistrations}</p>
-          </article>
-          <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-500 dark:text-slate-300">Live Events</p>
-              <ShieldCheck size={16} className="text-cyan-600" />
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{metrics.liveNow}</p>
-          </article>
-        </section>
+        {!loading && !error && (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)]">
+            <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Assigned Event Command Center</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-300">
+                    Search, filter, and access scan/registration workflows quickly.
+                  </p>
+                </div>
+                <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-300">
+                  Showing {filteredEvents.length} of {events.length}
+                </p>
+              </div>
 
-        <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Mark Attendance</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-                Paste a scanned QR token or attendance URL to mark participant attendance.
-              </p>
-            </div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
-              <Link2 size={12} />
-              /api/registrations/attendance/:token
-            </span>
-          </div>
+              <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+                <label className="relative flex-1">
+                  <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search by title, category, venue..."
+                    className="w-full rounded-xl border border-slate-200 bg-white px-9 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-400 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                </label>
 
-          <form onSubmit={handleMarkAttendance} className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <input
-              value={attendanceInput}
-              onChange={(event) => setAttendanceInput(event.target.value)}
-              placeholder="Paste token or attendance URL"
-              className="flex-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
-            />
-            <button
-              type="submit"
-              disabled={markingAttendance}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-70"
-            >
-              {markingAttendance ? <Loader2 size={14} className="animate-spin" /> : null}
-              {markingAttendance ? "Marking..." : "Mark Attendance"}
-            </button>
-          </form>
+                <div className="flex flex-wrap items-center gap-2">
+                  {STAGE_FILTERS.map((filter) => {
+                    const isSelected = activeFilter === filter.key;
+                    const count = filterCounts[filter.key] || 0;
+                    return (
+                      <button
+                        key={filter.key}
+                        type="button"
+                        onClick={() => setActiveFilter(filter.key)}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                          isSelected
+                            ? "bg-indigo-600 text-white"
+                            : "border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/10"
+                        }`}
+                      >
+                        {filter.label} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-          {attendanceMessage && (
-            <p
-              className={`mt-4 rounded-lg px-3 py-2 text-sm ${
-                attendanceMessage.type === "success"
-                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                  : "bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-300"
-              }`}
-            >
-              {attendanceMessage.text}
-            </p>
-          )}
-        </section>
+              <div className="mt-5 space-y-3">
+                {filteredEvents.length > 0 ? (
+                  filteredEvents.slice(0, 8).map((event) => {
+                    const encodedId = encodeURIComponent(event.eventId || "");
+                    const canAct = Boolean(event.eventId);
+                    const isCompleted = event.stage === "completed" || event.status === "Completed";
+                    const isCancelled = event.stage === "cancelled" || event.status === "Cancelled";
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6">
-          <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Priority Task Queue</h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-              Upcoming coordinator actions derived from assigned event schedules.
-            </p>
-            <div className="mt-4 space-y-3">
-              {tasks.length > 0 ? (
-                tasks.map((task) => (
-                  <article
-                    key={task.id}
-                    className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 p-4 bg-slate-50/80 dark:bg-white/5"
+                    return (
+                      <article
+                        key={event.eventId || `${event.title}-${event.updatedAt || event.startDate}`}
+                        className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:border-indigo-300 dark:border-white/10 dark:bg-slate-900/65"
+                      >
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="flex min-w-0 gap-3">
+                            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-slate-800">
+                              <img src={event.posterUrl} alt={event.title} className="h-full w-full object-cover" loading="lazy" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-200">
+                                  {event.category}
+                                </span>
+                                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${STAGE_STYLE[event.stage] || STAGE_STYLE.upcoming}`}>
+                                  {STAGE_LABEL[event.stage] || STAGE_LABEL.upcoming}
+                                </span>
+                              </div>
+                              <h3 className="mt-1 truncate text-lg font-bold text-slate-900 dark:text-white">{event.title}</h3>
+                              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                Workflow: {event.status} • Updated {formatDateTime(event.updatedAt)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-xs text-slate-500 dark:text-slate-300">
+                            <p className="font-semibold text-slate-700 dark:text-slate-200">{formatDate(event.startDate)}</p>
+                            <p>{formatTimeRange(event.schedule)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+                          <p className="inline-flex items-center gap-1.5">
+                            <MapPin size={13} />
+                            {event.venue}
+                          </p>
+                          <p className="inline-flex items-center gap-1.5">
+                            <Users2 size={13} />
+                            {event.attendance} attendance marked
+                          </p>
+                          <p className="inline-flex items-center gap-1.5">
+                            <Star size={13} />
+                            {Number.isFinite(event.rating) ? `${event.rating.toFixed(1)} rating` : "Not rated yet"}
+                          </p>
+                          <p className="inline-flex items-center gap-1.5">
+                            <MessageSquareMore size={13} />
+                            {event.feedbackCount} feedback
+                          </p>
+                        </div>
+
+                        <p className="mt-3 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">{event.description}</p>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={!canAct}
+                            onClick={() => navigate(`/coordinator-dashboard/event/${encodedId}/details`)}
+                            className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                          >
+                            Details
+                          </button>
+
+                          {!isCancelled && (
+                            <button
+                              type="button"
+                              disabled={!canAct}
+                              onClick={() => navigate(`/coordinator-dashboard/event/${encodedId}/scan`)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60 dark:border-indigo-400/30 dark:text-indigo-200 dark:hover:bg-indigo-500/20"
+                            >
+                              <QrCode size={13} />
+                              Scan QR
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={!canAct || isCancelled}
+                            onClick={() => navigate(`/coordinator-dashboard/event/${encodedId}/registrations`)}
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold ${
+                              isCancelled
+                                ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400 dark:border-white/10 dark:bg-white/10 dark:text-slate-500"
+                                : "bg-indigo-600 text-white hover:bg-indigo-700"
+                            }`}
+                          >
+                            <Users2 size={13} />
+                            Registrations
+                          </button>
+
+                          {(isCompleted || event.feedbackCount > 0) && (
+                            <button
+                              type="button"
+                              disabled={!canAct}
+                              onClick={() => navigate(`/coordinator-dashboard/event/${encodedId}/feedback`)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60 dark:border-violet-400/30 dark:text-violet-200 dark:hover:bg-violet-500/20"
+                            >
+                              <MessageSquareMore size={13} />
+                              Feedback
+                            </button>
+                          )}
+
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${WORKFLOW_STYLE[event.status] || WORKFLOW_STYLE.Published}`}>
+                            Workflow: {event.status}
+                          </span>
+                        </div>
+                      </article>
+                    );
+                  })
+                ) : events.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                    No assigned events found for this coordinator account.
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                    No assigned events match your current search/filter.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <aside className="space-y-4">
+              <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-5">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Recent Activity</h3>
+                <div className="mt-4 space-y-3">
+                  {activity.map((item) => {
+                    const iconClass =
+                      item.type === "attendance"
+                        ? "bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300"
+                        : item.type === "feedback"
+                        ? "bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300"
+                        : item.type === "live"
+                        ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300"
+                        : "bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300";
+
+                    return (
+                      <div key={item.id} className="flex items-start gap-3">
+                        <span className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full ${iconClass}`}>
+                          {item.type === "attendance" ? <Users2 size={14} /> : null}
+                          {item.type === "feedback" ? <MessageSquareMore size={14} /> : null}
+                          {item.type === "live" ? <Sparkles size={14} /> : null}
+                          {item.type === "status" ? <CircleCheck size={14} /> : null}
+                        </span>
+                        <div>
+                          <p className="text-sm text-slate-700 dark:text-slate-200">{item.text}</p>
+                          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{item.time}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-5">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Workflow Snapshot</h3>
+                <div className="mt-4 space-y-2">
+                  <p className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <Sparkles size={14} className="text-emerald-500" />
+                    {metrics.workflow.live} live
+                  </p>
+                  <p className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <CalendarDays size={14} className="text-sky-500" />
+                    {metrics.workflow.upcoming} upcoming
+                  </p>
+                  <p className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <CircleCheck size={14} className="text-indigo-500" />
+                    {metrics.workflow.completed} completed
+                  </p>
+                  <p className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <XCircle size={14} className="text-rose-500" />
+                    {metrics.workflow.cancelled} cancelled
+                  </p>
+                </div>
+              </section>
+
+              <section className="rounded-2xl bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 p-5 text-white shadow-xl shadow-indigo-500/20">
+                <h3 className="text-lg font-semibold">Complete your profile</h3>
+                <p className="mt-1 text-sm text-white/85">
+                  Keep profile data complete so organizers can coordinate with you faster.
+                </p>
+                <div className="mt-4">
+                  <div className="h-2 rounded-full bg-white/25">
+                    <div
+                      className="h-full rounded-full bg-white transition-all duration-300"
+                      style={{ width: `${profileProgress.percentage}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-white/90">
+                    <span>{profileProgress.percentage}% completed</span>
+                    <span>{profileProgress.stepsLeft} steps left</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/coordinator-dashboard/profile")}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white/95 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-white"
+                >
+                  Continue Setup
+                </button>
+              </section>
+
+              <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Quick Shortcuts</p>
+                <div className="mt-3 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/coordinator-dashboard/registrations")}
+                    className="inline-flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/10"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold text-slate-900 dark:text-white">{task.title}</p>
-                      <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
-                        {task.status}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{task.due}</p>
-                  </article>
-                ))
-              ) : (
-                <p className="text-sm text-slate-500 dark:text-slate-300">No assigned events found for this coordinator account.</p>
-              )}
-            </div>
-          </section>
-
-          <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Coordination Insights</h2>
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 p-4 bg-slate-50/80 dark:bg-white/5">
-                <p className="font-semibold text-slate-900 dark:text-white">Most recently updated event</p>
-                <p className="text-slate-500 dark:text-slate-300 mt-1">{mostRecent?.title || "N/A"}</p>
-              </div>
-              <div className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 p-4 bg-slate-50/80 dark:bg-white/5">
-                <p className="font-semibold text-slate-900 dark:text-white">Next schedule checkpoint</p>
-                <p className="text-slate-500 dark:text-slate-300 mt-1">{formatDateTime(mostRecent?.schedule?.startDate)}</p>
-              </div>
-              <div className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 p-4 bg-slate-50/80 dark:bg-white/5">
-                <p className="font-semibold text-slate-900 dark:text-white">Escalation channel</p>
-                <p className="text-slate-500 dark:text-slate-300 mt-1">Use Contact Admin for approvals and blockers.</p>
-              </div>
-            </div>
-          </section>
-        </div>
+                    Open Event Workspace
+                    <Users2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/coordinator-dashboard/notifications")}
+                    className="inline-flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/10"
+                  >
+                    Open Notifications
+                    <Clock3 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/coordinator-dashboard/contact-admin")}
+                    className="inline-flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/10"
+                  >
+                    Contact Admin
+                    <MessageSquareMore size={14} />
+                  </button>
+                </div>
+              </section>
+            </aside>
+          </div>
+        )}
       </div>
-    </div>
+    </section>
   );
 }

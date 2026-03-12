@@ -2,6 +2,9 @@ import Event from "../models/Event.model.js";
 import User from "../models/User.model.js";
 import uploadImageCloudinary from "../utils/uploadImageCloudinary.js";
 import {asyncHandler} from "../utils/asyncHandler.js";
+import { sendNotification } from "../services/notification.service.js";
+
+const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export const createEventController = asyncHandler(async (req, res) => {
 
@@ -192,54 +195,6 @@ export const cancelEvent = async (req, res, next) => {
   }
 };
 
-//completeEvent
-export const completeEvent = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    const event = await Event.findById(id);
-
-    if (!event) {
-      return res.status(404).json({
-        success: false,
-        message: "Event not found"
-      });
-    }
-
-
-    if (event.status !== "Published") {
-      return res.status(400).json({
-        success: false,
-        message: "Only published events can be marked as completed"
-      });
-    }
-
-    if (
-      req.user.role !== "ADMIN" &&
-      event.createdBy.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized to complete this event"
-      });
-    }
-
-    event.status = "Completed";
-    event.updatedBy = req.user._id;
-
-    await event.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Event marked as completed successfully",
-      data: event
-    });
-
-  } catch (error) {
-    next(error);
-  }
-};
-
 //updateEvent
 export const updateEvent = async (req, res, next) => {
   try {
@@ -373,6 +328,16 @@ export const assignCoordinator = async (req, res, next) => {
 
     await event.save();
 
+    await sendNotification({
+      recipientId: coordinator._id,
+      recipientName: coordinator.fullName,
+      recipientRole: "STUDENT_COORDINATOR",
+      title: "New Event Assignment",
+      message: `You have been assigned to coordinate ${event.title}`,
+      type: "ASSIGNMENT",
+      refId: event._id
+    });
+
     return res.status(200).json({
       success: true,
       message: "Coordinator assigned successfully",
@@ -395,6 +360,43 @@ export const getMyEvents = async (req, res, next) => {
       success: true,
       count: events.length,
       data: events
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Coordinator sees events assigned to their account (all statuses)
+export const getMyAssignedEvents = async (req, res, next) => {
+  try {
+    if (req.user.role !== "STUDENT_COORDINATOR") {
+      return res.status(403).json({
+        success: false,
+        message: "Only coordinators can access assigned events",
+      });
+    }
+
+    const coordinatorId = req.user._id;
+    const coordinatorEmail = String(req.user.email || "").trim();
+
+    const query = {
+      $or: [
+        { "studentCoordinators.coordinatorId": coordinatorId },
+      ],
+    };
+
+    if (coordinatorEmail) {
+      query.$or.push({
+        "studentCoordinators.email": { $regex: `^${escapeRegex(coordinatorEmail)}$`, $options: "i" },
+      });
+    }
+
+    const events = await Event.find(query).sort({ updatedAt: -1, createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: events.length,
+      data: events,
     });
   } catch (error) {
     next(error);

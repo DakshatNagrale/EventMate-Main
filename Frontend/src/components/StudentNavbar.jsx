@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   Bell, 
   Menu, 
@@ -10,17 +10,22 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import AvatarWithFrame from './AvatarWithFrame';
-import { DEFAULT_AVATAR_FRAME } from '../constants/profileCustomization';
+import api from "../lib/api";
+import SummaryApi from "../api/SummaryApi";
+import { io } from "socket.io-client";
+import { API_BASE_URL } from "../lib/backendUrl";
 
 const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const socketRef = useRef(null);
   const isStudent = user?.role === "STUDENT";
   const displayName = user?.fullName || user?.name || 'Student';
   const avatarUrl = user?.avatar || "";
-  const avatarFrame = DEFAULT_AVATAR_FRAME;
+  const avatarFrame = "NONE";
   const avatarText = displayName.charAt(0).toUpperCase();
   const isDark = theme === "dark";
   const themeToggleClass =
@@ -35,8 +40,63 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
     home: "/student-dashboard",
     events: "/student-dashboard/events",
     "my-events": "/student-dashboard/my-events",
+    notifications: "/student-dashboard/notifications",
     "contact-us": "/student-dashboard/contact-us",
   };
+
+  useEffect(() => {
+    let mounted = true;
+    const userId = String(user?._id || user?.id || "").trim();
+
+    const syncUnread = async () => {
+      try {
+        const response = await api({ ...SummaryApi.get_my_notifications, cacheTTL: 20000 });
+        const nextUnread = Number(response?.data?.unreadCount || 0);
+        if (mounted) setUnreadCount(nextUnread);
+      } catch {
+        if (mounted) setUnreadCount(0);
+      }
+    };
+
+    const onUnreadCount = (event) => {
+      const nextUnread = Number(event?.detail ?? 0);
+      setUnreadCount(Number.isFinite(nextUnread) ? Math.max(0, nextUnread) : 0);
+    };
+
+    window.addEventListener("eventmate:student-unread-count", onUnreadCount);
+    syncUnread();
+
+    let intervalId = null;
+    if (userId) {
+      const socket = io(API_BASE_URL || "http://localhost:5000", {
+        transports: ["websocket", "polling"],
+        withCredentials: true,
+      });
+
+      socketRef.current = socket;
+
+      socket.on("connect", () => {
+        socket.emit("join", userId);
+      });
+
+      socket.on("notification", () => {
+        if (!mounted) return;
+        setUnreadCount((prev) => prev + 1);
+      });
+
+      intervalId = setInterval(syncUnread, 30000);
+    }
+
+    return () => {
+      mounted = false;
+      if (intervalId) clearInterval(intervalId);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      window.removeEventListener("eventmate:student-unread-count", onUnreadCount);
+    };
+  }, [user?._id, user?.id]);
 
   // Handle route navigation for student dashboard pages
   const handleNavClick = (pageName) => {
@@ -126,9 +186,17 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
           <div className="hidden sm:ml-6 sm:flex sm:items-center gap-4">
 
             {/* Notifications Bell */}
-            <button className="p-1 rounded-full text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-indigo-300 focus:outline-none relative">
+            <button
+              type="button"
+              onClick={() => handleNavClick("notifications")}
+              className="p-1 rounded-full text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-indigo-300 focus:outline-none relative"
+            >
               <Bell className="h-6 w-6" />
-              <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-900"></span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center px-1 ring-2 ring-white dark:ring-gray-900">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -163,9 +231,6 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
                   
                   <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5">
                     Your Profile
-                  </Link>
-                  <Link to="/profile/customization" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5">
-                    Customize Avatar
                   </Link>
                   <Link to="/settings" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5">
                     Settings
@@ -225,6 +290,12 @@ const Navbar = ({ activePage, setActivePage, user, onLogout }) => {
               className={mobileLinkClass("contact-us")}
             >
               Contact us
+            </button>
+            <button
+              onClick={() => handleNavClick("notifications")}
+              className={mobileLinkClass("notifications")}
+            >
+              Notifications
             </button>
           </div>
           

@@ -49,6 +49,24 @@ const AdminNotifications = lazy(() =>
   }))
 );
 
+const AdminSystemOversight = lazy(() =>
+  import("./pages/AdminSystemOversight").catch(() => ({
+    default: () => <div>System oversight loading...</div>,
+  }))
+);
+
+const AdminCertificatesAuditLogs = lazy(() =>
+  import("./pages/AdminCertificatesAuditLogs").catch(() => ({
+    default: () => <div>Certificates and audit logs loading...</div>,
+  }))
+);
+
+const AdminSecurityReports = lazy(() =>
+  import("./pages/AdminSecurityReports").catch(() => ({
+    default: () => <div>Security and reports loading...</div>,
+  }))
+);
+
 const OrganizerDashboard = lazy(() =>
   import("./pages/OrganizerDashboard").catch(() => ({
     default: () => <div>Dashboard loading...</div>,
@@ -79,9 +97,21 @@ const OrganizerEventScanQR = lazy(() =>
   }))
 );
 
+const OrganizerEventViewList = lazy(() =>
+  import("./pages/OrganizerEventViewList").catch(() => ({
+    default: () => <div>View list loading...</div>,
+  }))
+);
+
 const OrganizerEventFeedback = lazy(() =>
   import("./pages/OrganizerEventFeedback").catch(() => ({
     default: () => <div>Feedback loading...</div>,
+  }))
+);
+
+const OrganizerCertificateManagement = lazy(() =>
+  import("./pages/OrganizerCertificateManagement").catch(() => ({
+    default: () => <div>Certificate management loading...</div>,
   }))
 );
 
@@ -97,9 +127,21 @@ const OrganizerContactAdmin = lazy(() =>
   }))
 );
 
+const OrganizerNotifications = lazy(() =>
+  import("./pages/OrganizerNotifications").catch(() => ({
+    default: () => <div>Notifications loading...</div>,
+  }))
+);
+
 const CoordinatorDashboard = lazy(() =>
   import("./pages/CoordinatorDashboard").catch(() => ({
     default: () => <div>Dashboard loading...</div>,
+  }))
+);
+
+const CoordinatorEventDetails = lazy(() =>
+  import("./pages/CoordinatorEventDetails").catch(() => ({
+    default: () => <div>Event details loading...</div>,
   }))
 );
 
@@ -112,6 +154,24 @@ const CoordinatorContactAdmin = lazy(() =>
 const CoordinatorRegistrations = lazy(() =>
   import("./pages/CoordinatorRegistrations").catch(() => ({
     default: () => <div>Registrations loading...</div>,
+  }))
+);
+
+const CoordinatorAttendanceScanner = lazy(() =>
+  import("./pages/CoordinatorAttendanceScanner").catch(() => ({
+    default: () => <div>Attendance scanner loading...</div>,
+  }))
+);
+
+const CoordinatorEventFeedback = lazy(() =>
+  import("./pages/CoordinatorEventFeedback").catch(() => ({
+    default: () => <div>Feedback loading...</div>,
+  }))
+);
+
+const CoordinatorNotifications = lazy(() =>
+  import("./pages/CoordinatorNotifications").catch(() => ({
+    default: () => <div>Notifications loading...</div>,
   }))
 );
 
@@ -163,20 +223,32 @@ const StudentFeedbackPending = lazy(() =>
   }))
 );
 
+const StudentNotifications = lazy(() =>
+  import("./pages/StudentNotifications").catch(() => ({
+    default: () => <div>Notifications loading...</div>,
+  }))
+);
+
 const MyCertificates = lazy(() =>
   import("./pages/MyCertificates").catch(() => ({
     default: () => <div>Loading certificates...</div>,
   }))
 );
 
+const AttendanceVerify = lazy(() =>
+  import("./pages/AttendanceVerify").catch(() => ({
+    default: () => <div>Attendance verification loading...</div>,
+  }))
+);
+
 const routeMotionVariants = {
-  initial: { opacity: 0, y: 18, scale: 0.992, filter: "blur(6px)" },
+  initial: { opacity: 0, y: 18, scale: 0.996, filter: "blur(6px)" },
   animate: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" },
-  exit: { opacity: 0, y: -12, scale: 0.996, filter: "blur(4px)" },
+  exit: { opacity: 0, y: -10, scale: 0.998, filter: "blur(4px)" },
 };
 
 const routeMotionTransition = {
-  duration: 0.42,
+  duration: 0.32,
   ease: [0.22, 1, 0.36, 1],
 };
 
@@ -190,13 +262,18 @@ function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/login" replace />;
   }
 
+  const toRoleKey = (value) =>
+    typeof value === "string" ? value.trim().toUpperCase() : String(value || "").toUpperCase();
+
   const allowedRoles = Array.isArray(requiredRole)
-    ? requiredRole
+    ? requiredRole.map(toRoleKey)
     : requiredRole
-      ? [requiredRole]
+      ? [toRoleKey(requiredRole)]
       : null;
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  const currentRole = toRoleKey(user?.role);
+
+  if (allowedRoles && !allowedRoles.includes(currentRole)) {
     return <Navigate to="/login" replace />;
   }
 
@@ -238,13 +315,18 @@ function AnimatedOutlet() {
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
     if (prefersReducedMotion) return undefined;
 
     const routeShell = routeShellRef.current;
     if (!routeShell) return undefined;
 
     const revealTargets = Array.from(
-      routeShell.querySelectorAll(".eventmate-panel, .eventmate-kpi, section, article, form, table")
+      routeShell.querySelectorAll(".eventmate-panel, .eventmate-kpi")
     ).filter((node) => !node.classList.contains("eventmate-reveal-static"));
 
     revealTargets.forEach((node, index) => {
@@ -253,24 +335,40 @@ function AnimatedOutlet() {
       node.style.setProperty("--eventmate-reveal-delay", `${Math.min(index, 14) * 28}ms`);
     });
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("eventmate-reveal-visible");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      {
-        threshold: 0.12,
-        rootMargin: "0px 0px -10% 0px",
-      }
-    );
+    if (typeof window === "undefined" || typeof window.IntersectionObserver !== "function") {
+      revealTargets.forEach((node) => node.classList.add("eventmate-reveal-visible"));
+      return undefined;
+    }
 
-    revealTargets.forEach((node) => observer.observe(node));
+    let observer = null;
 
-    return () => observer.disconnect();
+    const showAllTargets = () => {
+      revealTargets.forEach((node) => node.classList.add("eventmate-reveal-visible"));
+    };
+
+    try {
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("eventmate-reveal-visible");
+              observer?.unobserve(entry.target);
+            }
+          });
+        },
+        {
+          threshold: 0.12,
+          rootMargin: "0px 0px -10% 0px",
+        }
+      );
+
+      revealTargets.forEach((node) => observer.observe(node));
+    } catch {
+      showAllTargets();
+      return undefined;
+    }
+
+    return () => observer?.disconnect();
   }, [location.pathname, location.search, prefersReducedMotion]);
 
   useEffect(() => {
@@ -308,15 +406,15 @@ function AnimatedOutlet() {
   }, [location.pathname, location.search, prefersReducedMotion]);
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
+    <AnimatePresence mode="wait" initial={!prefersReducedMotion}>
       <motion.div
         ref={routeShellRef}
         key={`${location.pathname}${location.search}`}
         variants={routeMotionVariants}
-        initial="initial"
+        initial={prefersReducedMotion ? false : "initial"}
         animate="animate"
-        exit="exit"
-        transition={routeMotionTransition}
+        exit={prefersReducedMotion ? "animate" : "exit"}
+        transition={prefersReducedMotion ? { duration: 0 } : routeMotionTransition}
         className="eventmate-route-shell"
       >
         <span className="eventmate-interaction-glow" aria-hidden="true" />
@@ -328,6 +426,9 @@ function AnimatedOutlet() {
 }
 
 function MainLayout() {
+  const location = useLocation();
+  const showSharedFooter = location.pathname !== "/";
+
   return (
     <div className="eventmate-app-shell eventmate-app-shell-public relative isolate flex min-h-screen flex-col overflow-x-hidden transition-colors duration-500">
       <ScrollProgressBeam />
@@ -336,7 +437,7 @@ function MainLayout() {
       <main className="relative z-[1] flex-1">
         <AnimatedOutlet />
       </main>
-      <Footer />
+      {showSharedFooter && <Footer />}
     </div>
   );
 }
@@ -390,7 +491,16 @@ export default function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/verify-registration" element={<VerifyRegistration />} />
+          <Route
+            path="/attendance/verify"
+            element={
+              <Suspense fallback={<div className="p-8 text-center">Loading attendance verification...</div>}>
+                <AttendanceVerify />
+              </Suspense>
+            }
+          />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
 
         <Route element={<DashboardLayout />}>
@@ -444,6 +554,39 @@ export default function App() {
               <ProtectedRoute requiredRole="MAIN_ADMIN">
                 <Suspense fallback={<div className="p-8 text-center">Loading Notifications...</div>}>
                   <AdminNotifications />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin-dashboard/system-oversight"
+            element={
+              <ProtectedRoute requiredRole="MAIN_ADMIN">
+                <Suspense fallback={<div className="p-8 text-center">Loading System Oversight...</div>}>
+                  <AdminSystemOversight />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin-dashboard/certificates-audit"
+            element={
+              <ProtectedRoute requiredRole="MAIN_ADMIN">
+                <Suspense fallback={<div className="p-8 text-center">Loading Certificates & Audit Logs...</div>}>
+                  <AdminCertificatesAuditLogs />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin-dashboard/security-reports"
+            element={
+              <ProtectedRoute requiredRole="MAIN_ADMIN">
+                <Suspense fallback={<div className="p-8 text-center">Loading Security & Reports...</div>}>
+                  <AdminSecurityReports />
                 </Suspense>
               </ProtectedRoute>
             }
@@ -505,11 +648,33 @@ export default function App() {
           />
 
           <Route
+            path="/organizer-dashboard/event/:eventId/view-list"
+            element={
+              <ProtectedRoute requiredRole="ORGANIZER">
+                <Suspense fallback={<div className="p-8 text-center">Loading View List...</div>}>
+                  <OrganizerEventViewList />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/organizer-dashboard/event/:eventId/feedback"
             element={
               <ProtectedRoute requiredRole="ORGANIZER">
                 <Suspense fallback={<div className="p-8 text-center">Loading Feedback...</div>}>
                   <OrganizerEventFeedback />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/organizer-dashboard/event/:eventId/certificates"
+            element={
+              <ProtectedRoute requiredRole="ORGANIZER">
+                <Suspense fallback={<div className="p-8 text-center">Loading Certificate Management...</div>}>
+                  <OrganizerCertificateManagement />
                 </Suspense>
               </ProtectedRoute>
             }
@@ -532,6 +697,17 @@ export default function App() {
               <ProtectedRoute requiredRole="ORGANIZER">
                 <Suspense fallback={<div className="p-8 text-center">Loading Contact Admin...</div>}>
                   <OrganizerContactAdmin />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/organizer-dashboard/notifications"
+            element={
+              <ProtectedRoute requiredRole="ORGANIZER">
+                <Suspense fallback={<div className="p-8 text-center">Loading Notifications...</div>}>
+                  <OrganizerNotifications />
                 </Suspense>
               </ProtectedRoute>
             }
@@ -574,6 +750,72 @@ export default function App() {
               <ProtectedRoute requiredRole="STUDENT_COORDINATOR">
                 <Suspense fallback={<div className="p-8 text-center">Loading Registrations...</div>}>
                   <CoordinatorRegistrations />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/coordinator-dashboard/event/:eventId/registrations"
+            element={
+              <ProtectedRoute requiredRole="STUDENT_COORDINATOR">
+                <Suspense fallback={<div className="p-8 text-center">Loading Registrations...</div>}>
+                  <CoordinatorRegistrations />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/coordinator-dashboard/event/:eventId/details"
+            element={
+              <ProtectedRoute requiredRole="STUDENT_COORDINATOR">
+                <Suspense fallback={<div className="p-8 text-center">Loading Event Details...</div>}>
+                  <CoordinatorEventDetails />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/coordinator-dashboard/event/:eventId/scan"
+            element={
+              <ProtectedRoute requiredRole="STUDENT_COORDINATOR">
+                <Suspense fallback={<div className="p-8 text-center">Loading Attendance Scanner...</div>}>
+                  <CoordinatorAttendanceScanner />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/coordinator-dashboard/event/:eventId/scan-qr"
+            element={
+              <ProtectedRoute requiredRole="STUDENT_COORDINATOR">
+                <Suspense fallback={<div className="p-8 text-center">Loading Attendance Scanner...</div>}>
+                  <CoordinatorAttendanceScanner />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/coordinator-dashboard/event/:eventId/feedback"
+            element={
+              <ProtectedRoute requiredRole="STUDENT_COORDINATOR">
+                <Suspense fallback={<div className="p-8 text-center">Loading Feedback...</div>}>
+                  <CoordinatorEventFeedback />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/coordinator-dashboard/notifications"
+            element={
+              <ProtectedRoute requiredRole="STUDENT_COORDINATOR">
+                <Suspense fallback={<div className="p-8 text-center">Loading Notifications...</div>}>
+                  <CoordinatorNotifications />
                 </Suspense>
               </ProtectedRoute>
             }
@@ -663,6 +905,14 @@ export default function App() {
               }
             />
             <Route
+              path="notifications"
+              element={
+                <Suspense fallback={<div className="p-8 text-center">Loading Notifications...</div>}>
+                  <StudentNotifications />
+                </Suspense>
+              }
+            />
+            <Route
               path="my-certificates"
               element={
                 <Suspense fallback={<div className="p-8 text-center">Loading Certificates...</div>}>
@@ -699,9 +949,8 @@ export default function App() {
             }
           />
         </Route>
-
-        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );
 }
+

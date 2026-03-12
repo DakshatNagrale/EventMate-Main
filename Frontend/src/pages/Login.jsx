@@ -23,29 +23,26 @@ export default function Login() {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
-  const finalizeLogin = async ({ accessToken, refreshToken, role, user }) => {
+  const finalizeLogin = ({ accessToken, refreshToken, role, user }) => {
     const finalAccessToken = accessToken;
     if (!finalAccessToken) {
       throw new Error("Login failed. Missing access token.");
     }
 
-    storeAuth({ accessToken: finalAccessToken, refreshToken, user: user || (role ? { role } : undefined) });
+    const initialUser = user || (role ? { role } : undefined);
+    storeAuth({ accessToken: finalAccessToken, refreshToken, user: initialUser });
 
-    let profileUser = user || null;
-    try {
-      if (!profileUser) {
-        const profileResponse = await api({ ...SummaryApi.get_profile });
-        profileUser = profileResponse.data?.user || null;
-      }
-      if (profileUser) {
-        storeAuth({ user: profileUser });
-      }
-    } catch {
-      profileUser = null;
-    }
-
-    const currentRole = profileUser?.role || role || user?.role;
+    const currentRole = initialUser?.role || role;
     navigate(dashboardRoutes[currentRole] || "/student-dashboard", { replace: true });
+
+    if (!user) {
+      void api({ ...SummaryApi.get_profile, cacheTTL: 90000 })
+        .then((profileResponse) => {
+          const profileUser = profileResponse.data?.user || null;
+          if (profileUser) storeAuth({ user: profileUser });
+        })
+        .catch(() => {});
+    }
   };
 
   const handleChange = (e) => {
@@ -75,15 +72,28 @@ export default function Login() {
     try {
       const response = await api({ ...SummaryApi.login, data });
       const { accessToken, refreshToken, role, token, user } = response.data || {};
-      await finalizeLogin({ accessToken: accessToken || token, refreshToken, role, user });
+      finalizeLogin({ accessToken: accessToken || token, refreshToken, role, user });
     } catch (error) {
       const status = error.response?.status;
       const retryAfter = Number(error.response?.data?.retryAfterSeconds);
+      const responseData = error.response?.data;
+      const backendMessage =
+        typeof responseData?.message === "string" && responseData.message.trim()
+          ? responseData.message
+          : null;
+      const isLikelyProxyHtmlError =
+        status === 500 &&
+        typeof responseData === "string" &&
+        responseData.toLowerCase().includes("<!doctype html");
       const rateLimitMessage =
         status === 429 && Number.isFinite(retryAfter)
           ? `Too many attempts. Try again in ${retryAfter} seconds.`
-          : error.response?.data?.message;
-      setErrors({ submit: rateLimitMessage || error.message || "Login failed. Please try again." });
+          : backendMessage;
+      const fallbackMessage = isLikelyProxyHtmlError
+        ? "Backend is unreachable. Start the backend server and try again."
+        : "Login failed. Please try again.";
+      const networkMessage = status ? fallbackMessage : (error.message || fallbackMessage);
+      setErrors({ submit: rateLimitMessage || networkMessage });
     } finally {
       setIsLoading(false);
     }
@@ -226,7 +236,7 @@ export default function Login() {
                       className="text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                       onClick={() => setShowPassword((prev) => !prev)}
                     >
-                      {showPassword ? <FaRegEye /> : <FaRegEyeSlash />}
+                      {showPassword ? <FaRegEye className="eventmate-icon" /> : <FaRegEyeSlash className="eventmate-icon" />}
                     </button>
                   </div>
                   <div className="mt-2 text-right">

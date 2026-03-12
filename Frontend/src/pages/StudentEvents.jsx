@@ -104,9 +104,11 @@ export default function StudentEvents() {
     setRegistrationWarning(null);
 
     try {
-      const publicEventsResponse = await api({ ...SummaryApi.get_public_events });
+      const [publicEventsResponse, registrationInfo] = await Promise.all([
+        api({ ...SummaryApi.get_public_events, cacheTTL: 90000 }),
+        fetchRegisteredEventIds(),
+      ]);
       const publicEvents = extractEventList(publicEventsResponse.data);
-      const registrationInfo = await fetchRegisteredEventIds();
       const registeredIds = registrationInfo.ids;
       setRegistrationWarning(registrationInfo.warning);
 

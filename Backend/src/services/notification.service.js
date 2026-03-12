@@ -1,0 +1,54 @@
+import Notification from "../models/Notification.model.js";
+
+let io = null;
+
+// Called once from server.js to attach socket.io instance
+export const initSocket = (socketIo) => {
+  io = socketIo;
+};
+
+/* ================================================
+   SEND NOTIFICATION
+   Saves to DB + emits via socket if user is online
+================================================ */
+
+export const sendNotification = async ({
+  recipientId,
+  recipientName,
+  recipientRole,
+  title,
+  message,
+  type,
+  refId = null
+}) => {
+  try {
+    // Save to DB — works for offline users too
+    const notification = await Notification.create({
+      recipient: {
+        userId: recipientId,
+        name: recipientName,
+        role: recipientRole
+      },
+      title,
+      message,
+      type,
+      refId
+    });
+
+    // Emit to socket if user is online
+    if (io) {
+      io.to(`user_${recipientId}`).emit("notification", {
+        _id: notification._id,
+        title,
+        message,
+        type,
+        isRead: false,
+        createdAt: notification.createdAt
+      });
+    }
+
+    return notification;
+  } catch (error) {
+    console.error("❌ Notification error:", error.message);
+  }
+};

@@ -11,8 +11,11 @@ const emitAuthUpdated = () => {
 const normalizeUser = (user) => {
   if (!user) return null;
   const fullName = user.fullName || user.name || "";
+  const role =
+    typeof user.role === "string" ? user.role.trim().toUpperCase() : user.role;
   return {
     ...user,
+    role,
     fullName,
     name: fullName,
     isLoggedIn: true,
@@ -34,7 +37,8 @@ export const storeAuth = ({ accessToken, refreshToken, token, user }) => {
 
 export const getStoredUser = () => {
   try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || "null");
+    const parsed = JSON.parse(localStorage.getItem(USER_KEY) || "null");
+    return normalizeUser(parsed);
   } catch {
     return null;
   }

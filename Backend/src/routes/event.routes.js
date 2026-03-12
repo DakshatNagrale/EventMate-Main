@@ -2,7 +2,17 @@ import express from "express";
 import authMiddleware from "../middleware/auth.middleware.js";
 import roleMiddleware from "../middleware/role.middleware.js";
 import upload from "../middleware/multer.middleware.js";
-import { createEventController,publishEvent, getPublishedEvents, cancelEvent, completeEvent, updateEvent, getEvent, assignCoordinator, getMyEvents } from "../controllers/event.controller.js";
+import {
+  createEventController,
+  publishEvent,
+  getPublishedEvents,
+  cancelEvent,
+  updateEvent,
+  getEvent,
+  assignCoordinator,
+  getMyEvents,
+  getMyAssignedEvents
+} from "../controllers/event.controller.js";
 
 const router = express.Router();
 
@@ -21,6 +31,13 @@ router.get(
   getMyEvents
 );
 
+router.get(
+  "/assigned-to-me",
+  authMiddleware,
+  roleMiddleware("STUDENT_COORDINATOR"),
+  getMyAssignedEvents
+);
+
 router.patch(
   "/:id/publish",
   authMiddleware,
@@ -34,12 +51,6 @@ router.patch(
   "/:id/cancel",
   authMiddleware,
   cancelEvent
-);
-
-router.patch(
-  "/:id/complete",
-  authMiddleware,
-  completeEvent
 );
 
 router.patch(

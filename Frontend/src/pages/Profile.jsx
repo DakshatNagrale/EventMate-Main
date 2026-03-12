@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, ShieldCheck, UploadCloud, UserCircle2 } from "lucide-react";
-import { Link } from "react-router-dom";
 import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
 import { storeAuth } from "../lib/auth";
@@ -14,8 +13,6 @@ const ROLE_LABELS = {
   STUDENT_COORDINATOR: "Student Coordinator",
   STUDENT: "Student",
 };
-
-const PROFILE_CUSTOMIZATION_PATH = "/profile/customization";
 
 const emptyForm = {
   fullName: "",
@@ -286,21 +283,6 @@ export default function Profile() {
                       className="mt-1 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-4 py-3 text-sm text-slate-600 dark:text-slate-300"
                     />
                   </label>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 p-4">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Profile Customization Studio</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Open the dedicated page to explore wing frames and animated avatar borders.
-                  </p>
-                  <div className="mt-4">
-                    <Link
-                      to={PROFILE_CUSTOMIZATION_PATH}
-                      className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-                    >
-                      Open Customization Studio
-                    </Link>
-                  </div>
                 </div>
 
                 {isStudent && (

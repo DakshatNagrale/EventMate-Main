@@ -124,6 +124,116 @@ const EventSchema = new mongoose.Schema(
       templateId: {
         type: mongoose.Schema.Types.ObjectId
       },
+      customization: {
+        issuerName: {
+          type: String,
+          trim: true,
+          default: "BAJAJ CHANDRAPUR POLYTECHNIC, CHANDRAPUR"
+        },
+        participationTitle: {
+          type: String,
+          trim: true,
+          default: "Certificate of Participation"
+        },
+        winnerTitle: {
+          type: String,
+          trim: true,
+          default: "Certificate of Excellence"
+        },
+        introText: {
+          type: String,
+          trim: true,
+          default: "This is to certify that"
+        },
+        participationActionText: {
+          type: String,
+          trim: true,
+          default: "has successfully participated in"
+        },
+        winnerActionText: {
+          type: String,
+          trim: true,
+          default: "has achieved {position} Place in"
+        },
+        footerText: {
+          type: String,
+          trim: true,
+          default: "Issued by EventMate - Bajaj Chandrapur Polytechnic, Chandrapur"
+        },
+        coordinatorLabel: {
+          type: String,
+          trim: true,
+          default: "Coordinator"
+        },
+        principalLabel: {
+          type: String,
+          trim: true,
+          default: "Principal"
+        },
+        backgroundImageUrl: {
+          type: String,
+          trim: true,
+          default: ""
+        },
+        layout: {
+          logo: {
+            x: { type: Number, default: 50 },
+            y: { type: Number, default: 8 },
+            width: { type: Number, default: 120 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "center" }
+          },
+          issuerName: {
+            x: { type: Number, default: 50 },
+            y: { type: Number, default: 20 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "center" }
+          },
+          title: {
+            x: { type: Number, default: 50 },
+            y: { type: Number, default: 25 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "center" }
+          },
+          introText: {
+            x: { type: Number, default: 50 },
+            y: { type: Number, default: 34 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "center" }
+          },
+          participantName: {
+            x: { type: Number, default: 50 },
+            y: { type: Number, default: 38 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "center" }
+          },
+          actionText: {
+            x: { type: Number, default: 50 },
+            y: { type: Number, default: 46 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "center" }
+          },
+          eventName: {
+            x: { type: Number, default: 50 },
+            y: { type: Number, default: 50 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "center" }
+          },
+          dateVenue: {
+            x: { type: Number, default: 50 },
+            y: { type: Number, default: 55 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "center" }
+          },
+          coordinatorLabel: {
+            x: { type: Number, default: 9 },
+            y: { type: Number, default: 87 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "left" }
+          },
+          principalLabel: {
+            x: { type: Number, default: 91 },
+            y: { type: Number, default: 87 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "right" }
+          },
+          footerText: {
+            x: { type: Number, default: 50 },
+            y: { type: Number, default: 93 },
+            anchor: { type: String, enum: ["left", "center", "right"], default: "center" }
+          }
+        }
+      },
       issuedCount: {
         type: Number,
         default: 0

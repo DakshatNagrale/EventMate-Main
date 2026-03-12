@@ -124,7 +124,7 @@ export default function OrganizerCoordinatorManagement() {
     setListWarning(null);
 
     try {
-      const response = await api({ ...SummaryApi.get_my_events });
+      const response = await api({ ...SummaryApi.get_my_events, cacheTTL: 90000 });
       const events = sortByRecent(extractEventList(response.data));
       setMyEvents(events);
 

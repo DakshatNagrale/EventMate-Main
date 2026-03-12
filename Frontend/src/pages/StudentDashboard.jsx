@@ -20,78 +20,109 @@ const statusRank = {
   completed: 2,
 };
 
+const COMPLETED_EVENT_STATUSES = new Set([
+  "completed",
+  "cancelled",
+  "canceled",
+  "ended",
+  "done",
+  "past",
+]);
+
+const normalizeStatus = (value) => String(value || "").trim().toLowerCase();
+
 const dateValue = (value) => {
   const parsed = new Date(value || "");
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 };
 
-const EventCard = ({ event, onRegister, onViewDetails, registering }) => (
-  <div className="eventmate-panel bg-white dark:bg-gray-800 rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col h-full border border-gray-100 dark:border-gray-700 group">
-    <div className="relative h-48 overflow-hidden">
-      <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-      <div className="absolute top-3 right-3 px-3 py-1 rounded-full text-sm font-medium bg-white/90 dark:bg-gray-900/80 dark:text-gray-100 shadow-sm backdrop-blur-sm z-10">
-        {event.isFree ? "Free" : `Rs ${event.price}`}
-      </div>
-      <div
-        className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-semibold ${
-          event.status === "current"
-            ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-            : event.status === "completed"
-              ? "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
-              : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-        }`}
-      >
-        {event.status === "current" ? "Live" : event.status === "completed" ? "Completed" : "Upcoming"}
-      </div>
-    </div>
-    <div className="p-5 flex-grow flex flex-col">
-      <div className="flex items-center justify-between gap-3 text-sm mb-3">
-        <div className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-300">
-          <CalendarDays size={16} />
-          <span>{event.date} | {event.time}</span>
+const resolveDashboardStatus = (event) => {
+  const mappedStatus = normalizeStatus(event?.status);
+  if (mappedStatus === "current") return "current";
+  if (mappedStatus === "upcoming") return "upcoming";
+  if (COMPLETED_EVENT_STATUSES.has(mappedStatus)) return "completed";
+
+  const workflowStatus = normalizeStatus(event?.eventStatus);
+  if (COMPLETED_EVENT_STATUSES.has(workflowStatus)) return "completed";
+
+  const startDateTimestamp = dateValue(event?.startDate);
+  if (startDateTimestamp > 0 && Date.now() > startDateTimestamp) return "completed";
+
+  return "upcoming";
+};
+
+const EventCard = ({ event, onRegister, onViewDetails, registering }) => {
+  const dashboardStatus = resolveDashboardStatus(event);
+  const statusLabel = dashboardStatus === "current" ? "Live" : dashboardStatus === "completed" ? "Completed" : "Upcoming";
+
+  return (
+    <div className="eventmate-panel bg-white dark:bg-gray-800 rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col h-full border border-gray-100 dark:border-gray-700 group">
+      <div className="relative h-48 overflow-hidden">
+        <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <div className="absolute top-3 right-3 px-3 py-1 rounded-full text-sm font-medium bg-white/90 dark:bg-gray-900/80 dark:text-gray-100 shadow-sm backdrop-blur-sm z-10">
+          {event.isFree ? "Free" : `Rs ${event.price}`}
         </div>
-        <span
-          className={`px-3 py-1 rounded-full text-xs font-medium ${
-            event.type === "Technical"
-              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-              : event.type === "Cultural"
-                ? "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300"
-                : event.type === "Sports"
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                  : "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+        <div
+          className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-semibold ${
+            dashboardStatus === "current"
+              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+              : dashboardStatus === "completed"
+                ? "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
           }`}
         >
-          {event.type}
-        </span>
+          {statusLabel}
+        </div>
       </div>
-      <div className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-300 mb-3">
-        <MapPin size={16} />
-        <span>{event.venue}, {event.dept}</span>
-      </div>
-      <h3 className="font-bold text-2xl leading-tight text-gray-900 dark:text-white line-clamp-1 mb-2">{event.title}</h3>
-      <p className="text-base text-gray-600 dark:text-gray-300 leading-relaxed line-clamp-2 mb-6">
-        {event.description}
-      </p>
-      <div className="mt-auto grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => onRegister(event.id)}
-          disabled={event.isRegistered || registering || !event.registrationOpen}
-          className="w-full py-2.5 rounded-xl border-2 border-indigo-500 text-indigo-600 dark:border-indigo-300 dark:text-indigo-200 font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-500/20 transition disabled:opacity-60"
-        >
-          {registering ? "Registering..." : event.isRegistered ? "Registered" : event.registrationOpen ? "Register" : "Closed"}
-        </button>
-        <button
-          type="button"
-          onClick={() => onViewDetails(event.id)}
-          className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition"
-        >
-          View Details
-        </button>
+      <div className="p-5 flex-grow flex flex-col">
+        <div className="flex items-center justify-between gap-3 text-sm mb-3">
+          <div className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-300">
+            <CalendarDays size={16} />
+            <span>{event.date} | {event.time}</span>
+          </div>
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-medium ${
+              event.type === "Technical"
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                : event.type === "Cultural"
+                  ? "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300"
+                  : event.type === "Sports"
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                    : "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+            }`}
+          >
+            {event.type}
+          </span>
+        </div>
+        <div className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-300 mb-3">
+          <MapPin size={16} />
+          <span>{event.venue}, {event.dept}</span>
+        </div>
+        <h3 className="font-bold text-2xl leading-tight text-gray-900 dark:text-white line-clamp-1 mb-2">{event.title}</h3>
+        <p className="text-base text-gray-600 dark:text-gray-300 leading-relaxed line-clamp-2 mb-6">
+          {event.description}
+        </p>
+        <div className="mt-auto grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => onRegister(event.id)}
+            disabled={event.isRegistered || registering || !event.registrationOpen}
+            className="w-full py-2.5 rounded-xl border-2 border-indigo-500 text-indigo-600 dark:border-indigo-300 dark:text-indigo-200 font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-500/20 transition disabled:opacity-60"
+          >
+            {registering ? "Registering..." : event.isRegistered ? "Registered" : event.registrationOpen ? "Register" : "Closed"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onViewDetails(event.id)}
+            className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition"
+          >
+            View Details
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
@@ -108,8 +139,10 @@ export default function StudentDashboard() {
     setError(null);
     setRegistrationWarning(null);
     try {
-      const publicResponse = await api({ ...SummaryApi.get_public_events });
-      const registrationInfo = await fetchRegisteredEventIds();
+      const [publicResponse, registrationInfo] = await Promise.all([
+        api({ ...SummaryApi.get_public_events, cacheTTL: 90000 }),
+        fetchRegisteredEventIds(),
+      ]);
       const registeredIds = registrationInfo.ids;
       setRegistrationWarning(registrationInfo.warning);
       const publicEvents = extractEventList(publicResponse.data);
@@ -117,7 +150,9 @@ export default function StudentDashboard() {
       const allMapped = publicEvents
         .map((event) => mapApiEventToCard(event, { registeredIds }))
         .sort((a, b) => {
-          const rankDiff = (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
+          const rankDiff =
+            (statusRank[resolveDashboardStatus(a)] ?? 9) -
+            (statusRank[resolveDashboardStatus(b)] ?? 9);
           if (rankDiff !== 0) return rankDiff;
           return dateValue(a.startDate) - dateValue(b.startDate);
         });
@@ -164,10 +199,11 @@ export default function StudentDashboard() {
     [recommendedEvents, showAllRecommended]
   );
 
-  const totalLiveEvents = events.filter((event) => event.status === "current").length;
-  const totalUpcomingEvents = events.filter((event) => event.status === "upcoming").length;
-  const totalCompletedMyEvents = myEvents.filter((event) => event.status === "completed").length;
-  const totalActiveMyEvents = myEvents.filter((event) => event.status !== "completed").length;
+  const totalLiveEvents = events.filter((event) => resolveDashboardStatus(event) === "current").length;
+  const totalUpcomingEvents = events.filter((event) => resolveDashboardStatus(event) === "upcoming").length;
+  const totalCompletedEvents = events.filter((event) => resolveDashboardStatus(event) === "completed").length;
+  const totalCompletedMyEvents = myEvents.filter((event) => resolveDashboardStatus(event) === "completed").length;
+  const totalActiveMyEvents = myEvents.filter((event) => resolveDashboardStatus(event) !== "completed").length;
 
   const quickActions = [
     {
@@ -254,7 +290,7 @@ export default function StudentDashboard() {
         <StatCard label="All Events" value={events.length} color="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300" />
         <StatCard label="My Events" value={myEvents.length} />
         <StatCard label="Live Now" value={totalLiveEvents} color="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300" />
-        <StatCard label="Completed" value={totalCompletedMyEvents} color="bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300" />
+        <StatCard label="Completed" value={totalCompletedEvents} color="bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300" />
       </div>
 
       {loading && (

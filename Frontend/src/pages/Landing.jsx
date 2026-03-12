@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ContactUs from "../components/ContactUs";
+import Footer from "../components/Footer";
 import { motion, useReducedMotion, useScroll } from "framer-motion";
 import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
@@ -565,7 +566,11 @@ export default function Landing() {
           </motion.div>
           <ContactUs />
         </div>
-      </section>                                                                                                                     
+      </section>
+
+      <section className="relative z-20">
+        <Footer />
+      </section>
 
       <style>{`
         .hero-spotlight {

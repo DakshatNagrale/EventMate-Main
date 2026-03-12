@@ -1,0 +1,473 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle2,
+  CircleDashed,
+  Loader2,
+  QrCode,
+  RefreshCcw,
+  Search,
+  UserCircle2,
+} from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import api from "../lib/api";
+import SummaryApi from "../api/SummaryApi";
+import { extractEventItem } from "../lib/backendAdapters";
+
+const normalizeId = (value) => String(value || "").trim();
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+
+const parseRegistrationRows = (payload) => {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.registrations)) return payload.registrations;
+  if (Array.isArray(payload?.data?.registrations)) return payload.data.registrations;
+  return [];
+};
+
+const toParticipantRows = (registration) => {
+  const registrationId = normalizeId(registration?._id || registration?.id);
+  const registrationStatus = String(registration?.status || "Pending").trim() || "Pending";
+  const paymentStatus = String(registration?.payment?.paymentStatus || "NotRequired").trim() || "NotRequired";
+  const teamName = String(registration?.teamName || "").trim();
+  const registeredAt = registration?.createdAt || null;
+
+  const qrParticipants = Array.isArray(registration?.participants) ? registration.participants : [];
+  const qrByEmail = new Map(
+    qrParticipants
+      .filter((item) => item)
+      .map((item) => [normalizeEmail(item?.email), item])
+  );
+
+  const structuredParticipants = [registration?.teamLeader, ...(Array.isArray(registration?.teamMembers) ? registration.teamMembers : [])].filter(Boolean);
+
+  if (structuredParticipants.length > 0) {
+    return structuredParticipants.map((participant, index) => {
+      const participantEmail = String(participant?.email || "").trim();
+      const qr = qrByEmail.get(normalizeEmail(participantEmail)) || null;
+
+      return {
+        id: normalizeId(participant?._id || participant?.id || `${registrationId}-${participantEmail || index}`),
+        registrationId,
+        participantName: String(participant?.name || "Participant").trim() || "Participant",
+        participantEmail,
+        participantRole: String(qr?.role || (index === 0 ? "leader" : "member")).trim(),
+        mobileNumber: String(participant?.mobileNumber || "").trim(),
+        college: String(participant?.college || "").trim(),
+        branch: String(participant?.branch || "").trim(),
+        year: String(participant?.year || "").trim(),
+        teamName,
+        registrationStatus,
+        paymentStatus,
+        registeredAt,
+        attendanceMarked: Boolean(qr?.attendanceMarked),
+        attendanceMarkedAt: qr?.attendanceMarkedAt || null,
+      };
+    });
+  }
+
+  if (qrParticipants.length > 0) {
+    return qrParticipants.map((participant, index) => ({
+      id: normalizeId(participant?._id || participant?.id || `${registrationId}-${participant?.email || index}`),
+      registrationId,
+      participantName: String(participant?.name || "Participant").trim() || "Participant",
+      participantEmail: String(participant?.email || "").trim(),
+      participantRole: String(participant?.role || "participant").trim(),
+      mobileNumber: "",
+      college: "",
+      branch: "",
+      year: "",
+      teamName,
+      registrationStatus,
+      paymentStatus,
+      registeredAt,
+      attendanceMarked: Boolean(participant?.attendanceMarked),
+      attendanceMarkedAt: participant?.attendanceMarkedAt || null,
+    }));
+  }
+
+  return [
+    {
+      id: registrationId || Math.random().toString(36).slice(2),
+      registrationId,
+      participantName: "Participant",
+      participantEmail: "",
+      participantRole: "participant",
+      mobileNumber: "",
+      college: "",
+      branch: "",
+      year: "",
+      teamName,
+      registrationStatus,
+      paymentStatus,
+      registeredAt,
+      attendanceMarked: false,
+      attendanceMarkedAt: null,
+    },
+  ];
+};
+
+const parseParticipantRows = (payload) => parseRegistrationRows(payload).flatMap((registration) => toParticipantRows(registration));
+
+const formatDate = (value) => {
+  if (!value) return "Date TBD";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Date TBD";
+  return parsed.toLocaleDateString([], { year: "numeric", month: "short", day: "2-digit" });
+};
+
+const formatDateTime = (value) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const REGISTRATION_STATUS_STYLES = {
+  Confirmed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  PendingMemberVerification: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  PendingPayment: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  PendingPaymentVerification: "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300",
+  Rejected: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300",
+  Cancelled: "bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300",
+};
+
+const PAYMENT_STATUS_STYLES = {
+  Verified: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  Pending: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  UnderReview: "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300",
+  Rejected: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300",
+  NotRequired: "bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300",
+};
+
+const getStatusClass = (status, map) => map[String(status || "")] || "bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300";
+
+export default function OrganizerEventViewList() {
+  const navigate = useNavigate();
+  const { eventId } = useParams();
+
+  const [eventData, setEventData] = useState(null);
+  const [participantRows, setParticipantRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [query, setQuery] = useState("");
+  const [registrationFilter, setRegistrationFilter] = useState("All");
+  const [attendanceFilter, setAttendanceFilter] = useState("All");
+
+  const load = useCallback(
+    async ({ silent = false } = {}) => {
+      if (silent) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+
+      try {
+        const [detailResponse, registrationResponse] = await Promise.all([
+          api({
+            ...SummaryApi.get_public_event_details,
+            url: SummaryApi.get_public_event_details.url.replace(":eventId", encodeURIComponent(eventId || "")),
+          }),
+          api({
+            ...SummaryApi.get_event_registrations,
+            url: SummaryApi.get_event_registrations.url.replace(":eventId", encodeURIComponent(eventId || "")),
+          }),
+        ]);
+
+        const event = extractEventItem(detailResponse.data);
+        if (!event) {
+          setEventData(null);
+          setParticipantRows([]);
+          setError("Event not found.");
+          return;
+        }
+
+        setEventData(event);
+        setParticipantRows(parseParticipantRows(registrationResponse.data));
+      } catch (fetchError) {
+        setEventData(null);
+        setParticipantRows([]);
+        setError(fetchError.response?.data?.message || "Unable to load event participant list.");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [eventId]
+  );
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const registrationOptions = useMemo(() => {
+    const options = new Set(["All"]);
+    participantRows.forEach((row) => {
+      const status = String(row?.registrationStatus || "").trim();
+      if (status) options.add(status);
+    });
+    return [...options];
+  }, [participantRows]);
+
+  const filteredRows = useMemo(() => {
+    const normalizedQuery = String(query || "").trim().toLowerCase();
+
+    return participantRows.filter((row) => {
+      if (registrationFilter !== "All" && row.registrationStatus !== registrationFilter) return false;
+
+      if (attendanceFilter === "CheckedIn" && !row.attendanceMarked) return false;
+      if (attendanceFilter === "Pending" && row.attendanceMarked) return false;
+
+      if (!normalizedQuery) return true;
+
+      const searchSpace = [
+        row.participantName,
+        row.participantEmail,
+        row.mobileNumber,
+        row.teamName,
+        row.college,
+        row.branch,
+        row.year,
+        row.registrationStatus,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+
+      return searchSpace.includes(normalizedQuery);
+    });
+  }, [attendanceFilter, participantRows, query, registrationFilter]);
+
+  const stats = useMemo(() => {
+    const totalParticipants = participantRows.length;
+    const checkedIn = participantRows.filter((row) => row.attendanceMarked).length;
+    const remaining = Math.max(0, totalParticipants - checkedIn);
+    const confirmed = participantRows.filter((row) => row.registrationStatus === "Confirmed").length;
+    const groups = new Set(participantRows.map((row) => row.registrationId).filter(Boolean)).size;
+
+    return {
+      totalParticipants,
+      checkedIn,
+      remaining,
+      confirmed,
+      groups,
+    };
+  }, [participantRows]);
+
+  const encodedEventId = encodeURIComponent(normalizeId(eventData?._id) || eventId || "");
+
+  return (
+    <section className="eventmate-page min-h-screen bg-slate-100/80 dark:bg-gray-900 px-4 sm:px-6 py-8">
+      <div className="max-w-6xl mx-auto space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(`/organizer-dashboard/event/${encodedEventId}/details`)}
+            className="inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+          >
+            <ArrowLeft size={15} />
+            Back
+          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => load({ silent: true })}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              {refreshing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/organizer-dashboard/event/${encodedEventId}/scan-qr`)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              <QrCode size={14} />
+              Open Scanner
+            </button>
+          </div>
+        </div>
+
+        {loading && (
+          <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-5 text-sm text-slate-500 dark:text-slate-300 inline-flex items-center gap-2">
+            <Loader2 size={14} className="animate-spin" />
+            Loading participant list...
+          </section>
+        )}
+
+        {error && !loading && (
+          <section className="eventmate-panel rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300">
+            {error}
+          </section>
+        )}
+
+        {!loading && !error && eventData && (
+          <>
+            <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Participant List</h1>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{eventData?.title || "Event"}</p>
+                  <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <CalendarDays size={12} />
+                    {formatDate(eventData?.schedule?.startDate)}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
+                <p className="text-xs text-slate-500 dark:text-slate-300">Total Participants</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{stats.totalParticipants}</p>
+              </article>
+              <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
+                <p className="text-xs text-slate-500 dark:text-slate-300">Checked In</p>
+                <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-300">{stats.checkedIn}</p>
+              </article>
+              <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
+                <p className="text-xs text-slate-500 dark:text-slate-300">Remaining</p>
+                <p className="mt-1 text-2xl font-bold text-indigo-600 dark:text-indigo-300">{stats.remaining}</p>
+              </article>
+              <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
+                <p className="text-xs text-slate-500 dark:text-slate-300">Confirmed</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{stats.confirmed}</p>
+              </article>
+              <article className="eventmate-kpi rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
+                <p className="text-xs text-slate-500 dark:text-slate-300">Groups</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{stats.groups}</p>
+              </article>
+            </section>
+
+            <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-4">
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_180px_170px] gap-3">
+                <label className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search by name, email, college, team..."
+                    className="w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-slate-100"
+                  />
+                </label>
+
+                <select
+                  value={registrationFilter}
+                  onChange={(event) => setRegistrationFilter(event.target.value)}
+                  className="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm text-slate-800 dark:text-slate-100"
+                >
+                  {registrationOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={attendanceFilter}
+                  onChange={(event) => setAttendanceFilter(event.target.value)}
+                  className="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm text-slate-800 dark:text-slate-100"
+                >
+                  <option value="All">All Attendance</option>
+                  <option value="CheckedIn">Checked In</option>
+                  <option value="Pending">Pending</option>
+                </select>
+              </div>
+
+              <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-100/80 dark:bg-white/5">
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                      <th className="px-3 py-2.5 font-semibold">Participant</th>
+                      <th className="px-3 py-2.5 font-semibold">Contact</th>
+                      <th className="px-3 py-2.5 font-semibold">Academic</th>
+                      <th className="px-3 py-2.5 font-semibold">Team</th>
+                      <th className="px-3 py-2.5 font-semibold">Registration</th>
+                      <th className="px-3 py-2.5 font-semibold">Attendance</th>
+                      <th className="px-3 py-2.5 font-semibold">Registered</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-white/10 bg-white dark:bg-gray-900/40">
+                    {filteredRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-300">
+                          No participants found for the current filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRows.map((row) => (
+                        <tr key={`${row.registrationId}-${row.id}`} className="align-top">
+                          <td className="px-3 py-3">
+                            <div className="flex items-start gap-2.5">
+                              <UserCircle2 size={22} className="text-slate-400 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="font-semibold text-slate-900 dark:text-white">{row.participantName}</p>
+                                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">Role: {row.participantRole || "participant"}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="text-slate-800 dark:text-slate-100">{row.participantEmail || "-"}</p>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">{row.mobileNumber || "No mobile"}</p>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="text-slate-800 dark:text-slate-100">{row.college || "-"}</p>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">
+                              {[row.branch, row.year].filter(Boolean).join(" | ") || "-"}
+                            </p>
+                          </td>
+                          <td className="px-3 py-3 text-slate-700 dark:text-slate-200">{row.teamName || "Individual"}</td>
+                          <td className="px-3 py-3">
+                            <div className="flex flex-col gap-1.5">
+                              <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${getStatusClass(row.registrationStatus, REGISTRATION_STATUS_STYLES)}`}>
+                                {row.registrationStatus}
+                              </span>
+                              <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${getStatusClass(row.paymentStatus, PAYMENT_STATUS_STYLES)}`}>
+                                Payment: {row.paymentStatus}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            {row.attendanceMarked ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                                  <CheckCircle2 size={11} />
+                                  Checked In
+                                </span>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{formatDateTime(row.attendanceMarkedAt)}</p>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:bg-slate-500/20 dark:text-slate-300">
+                                <CircleDashed size={11} />
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-xs text-slate-600 dark:text-slate-300">{formatDateTime(row.registeredAt)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-300">
+                Showing {filteredRows.length} of {participantRows.length} participants.
+              </p>
+            </section>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+

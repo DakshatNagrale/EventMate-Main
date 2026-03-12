@@ -9,6 +9,7 @@ const resolveActivePage = (pathname) => {
   if (pathname.startsWith("/student-dashboard/events")) return "events";
   if (pathname.startsWith("/student-dashboard/my-events")) return "my-events";
   if (pathname.startsWith("/student-dashboard/my-certificates")) return "my-events";
+  if (pathname.startsWith("/student-dashboard/notifications")) return "notifications";
   if (pathname.startsWith("/student-dashboard/feedback-pending")) return "contact-us";
   if (pathname.startsWith("/student-dashboard/contact-us")) return "contact-us";
   return "home";

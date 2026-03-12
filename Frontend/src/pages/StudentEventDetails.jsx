@@ -21,7 +21,7 @@ import SummaryApi from "../api/SummaryApi";
 import { getStoredUser } from "../lib/auth";
 import { formatEventDate, mapApiEventToDetails } from "../data/studentEventApiData";
 import { extractEventItem, extractEventList } from "../lib/backendAdapters";
-import { fetchRegisteredEventIds } from "../lib/registrationApi";
+import { fetchRegisteredEventIds, invalidateMyRegistrationsCache } from "../lib/registrationApi";
 
 const registrationTypeLabels = {
   INDIVIDUAL: "Single Participant",
@@ -79,7 +79,7 @@ const getRegistrationList = (payload) => {
 };
 
 const findEventInPublicList = async (eventId) => {
-  const response = await api({ ...SummaryApi.get_public_events });
+  const response = await api({ ...SummaryApi.get_public_events, cacheTTL: 90000 });
   const normalizedEventId = normalizeId(eventId);
   return (
     extractEventList(response.data).find(
@@ -89,7 +89,7 @@ const findEventInPublicList = async (eventId) => {
 };
 
 const findEventInMyRegistrations = async (eventId) => {
-  const response = await api({ ...SummaryApi.get_my_registered_events });
+  const response = await api({ ...SummaryApi.get_my_registered_events, cacheTTL: 90000 });
   const normalizedEventId = normalizeId(eventId);
   const registration = getRegistrationList(response.data).find((item) => {
     const nestedEventId =
@@ -146,6 +146,7 @@ export default function StudentEventDetails({ mode = "details" }) {
       setMessage(null);
       setRegistrationWarning(null);
       try {
+        const registrationInfoPromise = fetchRegisteredEventIds();
         let responseEvent = null;
         let primaryError = null;
 
@@ -153,6 +154,7 @@ export default function StudentEventDetails({ mode = "details" }) {
           const detailsResponse = await api({
             ...SummaryApi.get_public_event_details,
             url: SummaryApi.get_public_event_details.url.replace(":eventId", eventId),
+            cacheTTL: 90000,
           });
           responseEvent = extractEventItem(detailsResponse.data);
         } catch (detailsError) {
@@ -182,7 +184,7 @@ export default function StudentEventDetails({ mode = "details" }) {
         setEvent(mappedEvent);
         setActiveDetailTab("about");
 
-        const registrationInfo = await fetchRegisteredEventIds();
+        const registrationInfo = await registrationInfoPromise;
         const registeredIds = registrationInfo.ids;
         setRegistrationWarning(registrationInfo.warning);
         setIsRegistered(
@@ -311,6 +313,7 @@ export default function StudentEventDetails({ mode = "details" }) {
           ? "Registered successfully. Your QR pass is now available in My Events."
           : "Registered successfully. Your QR pass will appear in My Events once registration is confirmed.",
       });
+      invalidateMyRegistrationsCache();
       setIsRegistered(true);
       setEvent((prev) =>
         prev

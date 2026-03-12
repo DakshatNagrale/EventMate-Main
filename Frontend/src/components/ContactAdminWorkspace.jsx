@@ -1,22 +1,9 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, AlertCircle, Loader2, Mail, RefreshCcw, SendHorizontal } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, RefreshCcw, SendHorizontal } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getStoredUser } from "../lib/auth";
 import api from "../lib/api";
 import SummaryApi from "../api/SummaryApi";
-
-const API_UNAVAILABLE_NOTICE =
-  "Contact message APIs are not available in this backend build. Use listed admin contacts directly.";
-
-const STATUS_LABEL = {
-  UNREAD: "Pending",
-  READ: "Seen by Admin",
-};
-
-const STATUS_STYLE = {
-  UNREAD: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
-  READ: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
-};
 
 const formatDateTime = (value) => {
   if (!value) return "N/A";
@@ -31,6 +18,13 @@ const formatDateTime = (value) => {
   });
 };
 
+const parseContactRows = (payload) => {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.contacts)) return payload.contacts;
+  if (Array.isArray(payload?.data?.contacts)) return payload.data.contacts;
+  return [];
+};
+
 export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }) {
   const navigate = useNavigate();
   const user = getStoredUser();
@@ -42,21 +36,39 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [apiWarning, setApiWarning] = useState(null);
+  const [canReadHistory, setCanReadHistory] = useState(false);
 
   const [adminContacts, setAdminContacts] = useState([]);
   const [contactsWarning, setContactsWarning] = useState(null);
 
   const fetchMessages = async () => {
     setLoadingMessages(true);
-    setMessages([]);
-    setApiWarning(API_UNAVAILABLE_NOTICE);
-    setLoadingMessages(false);
+    setApiWarning(null);
+    try {
+      const response = await api({ ...SummaryApi.get_contacts, cacheTTL: 45000 });
+      const rows = parseContactRows(response.data).sort(
+        (a, b) => new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime()
+      );
+      setMessages(rows);
+      setCanReadHistory(true);
+    } catch (fetchError) {
+      const status = Number(fetchError?.response?.status);
+      if (status === 401 || status === 403) {
+        setCanReadHistory(false);
+        setApiWarning("Message history is visible only to MAIN_ADMIN accounts. You can still submit messages.");
+      } else {
+        setApiWarning(fetchError.response?.data?.message || "Unable to load message history.");
+      }
+      setMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
   };
 
   const fetchAdminContacts = async () => {
     setContactsWarning(null);
     try {
-      const response = await api({ ...SummaryApi.get_all_users });
+      const response = await api({ ...SummaryApi.get_all_users, cacheTTL: 90000 });
       const users = Array.isArray(response.data?.users) ? response.data.users : [];
       const admins = users.filter((item) => item?.role === "MAIN_ADMIN");
       setAdminContacts(admins);
@@ -66,12 +78,7 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
       }
     } catch (fetchError) {
       setAdminContacts([]);
-      const status = Number(fetchError?.response?.status);
-      if (status === 403) {
-        setContactsWarning("Your role cannot access admin user directory in current backend access rules.");
-      } else {
-        setContactsWarning(fetchError.response?.data?.message || "Unable to load admin contacts.");
-      }
+      setContactsWarning(fetchError.response?.data?.message || "Unable to load admin contacts.");
     }
   };
 
@@ -79,8 +86,6 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
     fetchMessages();
     fetchAdminContacts();
   }, [user?._id]);
-
-  const sendDisabled = true;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -97,9 +102,45 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
       return;
     }
 
-    if (sendDisabled) {
-      setError(API_UNAVAILABLE_NOTICE);
+    const fullName = String(user?.fullName || "").trim();
+    const email = String(user?.email || "").trim();
+    if (!fullName || !email) {
+      setError("Your profile is missing name or email. Update profile and retry.");
       return;
+    }
+
+    try {
+      const composedMessage = `Subject: ${subject.trim()}\n\n${message.trim()}`;
+      const response = await api({
+        ...SummaryApi.submit_contact,
+        data: {
+          fullName,
+          email,
+          message: composedMessage,
+        },
+      });
+
+      setSuccess(response.data?.message || "Message sent successfully.");
+      setSubject("");
+      setMessage("");
+
+      if (canReadHistory) {
+        await fetchMessages();
+      } else {
+        setMessages((prev) => [
+          {
+            _id: `local-${Date.now()}`,
+            fullName,
+            email,
+            message: composedMessage,
+            createdAt: new Date().toISOString(),
+            submittedBy: { role: user?.role || "USER" },
+          },
+          ...prev,
+        ]);
+      }
+    } catch (submitError) {
+      setError(submitError.response?.data?.message || "Unable to send message.");
     }
   };
 
@@ -119,11 +160,6 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">{title}</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">{subtitle}</p>
         </section>
-
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200 inline-flex items-start gap-2 w-full">
-          <AlertCircle size={16} className="mt-0.5 shrink-0" />
-          This page now uses backend routes only. If contact APIs are missing in backend, sending/history will remain unavailable.
-        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6">
           <section className="eventmate-panel rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900/70 p-5 sm:p-6">
@@ -164,7 +200,6 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
 
               <button
                 type="submit"
-                disabled={sendDisabled}
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
               >
                 <SendHorizontal size={15} />
@@ -198,29 +233,26 @@ export default function ContactAdminWorkspace({ title, subtitle, dashboardPath }
                 Loading messages...
               </p>
             ) : messages.length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-300">No backend messages available.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-300">No messages available.</p>
             ) : (
               <div className="space-y-3">
                 {messages.map((item, index) => {
                   const key = String(item?._id || item?.id || item?.createdAt || index);
-                  const status = String(item?.status || "UNREAD").toUpperCase();
                   return (
                     <article
                       key={key}
                       className="rounded-xl border border-slate-200 dark:border-white/10 p-3 bg-slate-50/70 dark:bg-white/5"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{item?.subject || "Message"}</p>
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                            STATUS_STYLE[status] || STATUS_STYLE.UNREAD
-                          }`}
-                        >
-                          {STATUS_LABEL[status] || STATUS_LABEL.UNREAD}
-                        </span>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                          {item?.fullName || user?.fullName || "Message"}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">{formatDateTime(item?.createdAt)}</p>
                       </div>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300 break-all">
+                        {item?.email || user?.email || "N/A"}
+                      </p>
                       <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{item?.message || "-"}</p>
-                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Saved: {formatDateTime(item?.createdAt)}</p>
                     </article>
                   );
                 })}

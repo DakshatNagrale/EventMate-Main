@@ -73,7 +73,7 @@ export default function AdminUserManagement() {
     setLoading(true);
     setError(null);
     try {
-      const response = await api({ ...SummaryApi.get_all_users });
+      const response = await api({ ...SummaryApi.get_all_users, cacheTTL: 90000 });
       setUsers(response.data?.users || []);
     } catch (err) {
       setError(err.response?.data?.message || "Unable to load users.");

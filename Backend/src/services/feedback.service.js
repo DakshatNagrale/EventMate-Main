@@ -3,6 +3,7 @@ import EventRegistration from "../models/EventRegistration.model.js";
 import ParticipantQR from "../models/ParticipantQR.model.js";
 import Feedback from "../models/Feedback.model.js";
 import { generateCertificatesForRegistration } from "./certificate.service.js";
+import { sendNotification } from "./notification.service.js";
 
 /* ================================================
    SUBMIT FEEDBACK
@@ -11,67 +12,87 @@ import { generateCertificatesForRegistration } from "./certificate.service.js";
 export const submitFeedback = async (eventId, userId, payload) => {
   const { rating, comment } = payload;
 
-  // Rating is mandatory
-  if (!rating || rating < 1 || rating > 5)
+  if (!rating || rating < 1 || rating > 5) {
     throw new Error("Rating must be between 1 and 5");
+  }
 
-  // Event must exist and be Completed
   const event = await Event.findById(eventId);
   if (!event) throw new Error("Event not found");
 
-  if (event.status !== "Completed")
+  if (event.status !== "Completed") {
     throw new Error("Feedback can only be submitted after event is completed");
+  }
 
-  // Find the registration for this user
   const registration = await EventRegistration.findOne({
     event: eventId,
     registeredBy: userId,
     status: "Confirmed"
   });
 
-  if (!registration)
+  if (!registration) {
     throw new Error("No confirmed registration found for this event");
-
-  // For team events — only leader can submit feedback
-  // Leader is identified as the registeredBy user
-  if (event.isTeamEvent) {
-    if (registration.registeredBy.toString() !== userId.toString())
-      throw new Error("Only the team leader can submit feedback");
   }
 
-  // Leader/participant must have attended
+  if (event.isTeamEvent) {
+    if (registration.registeredBy.toString() !== userId.toString()) {
+      throw new Error("Only the team leader can submit feedback");
+    }
+  }
+
   const leaderQR = await ParticipantQR.findOne({
     registration: registration._id,
     email: registration.teamLeader.email
   });
 
-  if (!leaderQR || !leaderQR.attendanceMarked)
+  if (!leaderQR || !leaderQR.attendanceMarked) {
     throw new Error("Only participants who attended can submit feedback");
+  }
 
-  // Check duplicate feedback
   const existing = await Feedback.findOne({
     event: eventId,
     registration: registration._id
   });
 
-  if (existing)
+  if (existing) {
     throw new Error("Feedback already submitted for this event");
+  }
 
-  // Save feedback
   const feedback = await Feedback.create({
-  event: eventId,
-  eventName: event.title,
-  registration: registration._id,
-  participantName: registration.teamLeader.name,
-  participantEmail: registration.teamLeader.email,
-  submittedBy: userId,
-  rating,
-  comment: comment || null
-});
+    event: eventId,
+    eventName: event.title,
+    registration: registration._id,
+    participantName: registration.teamLeader.name,
+    participantEmail: registration.teamLeader.email,
+    submittedBy: userId,
+    rating,
+    comment: comment || null
+  });
 
-  // Trigger certificate generation in background — don't await
+  await sendNotification({
+    recipientId: event.createdBy,
+    recipientName: event.organizer.name,
+    recipientRole: "ORGANIZER",
+    title: "New Feedback Received",
+    message: `${registration.teamLeader.name} submitted feedback for ${event.title} - ${rating}/5`,
+    type: "FEEDBACK",
+    refId: event._id
+  });
+
+  for (const coordinator of event.studentCoordinators || []) {
+    if (!coordinator?.coordinatorId) continue;
+    await sendNotification({
+      recipientId: coordinator.coordinatorId,
+      recipientName: coordinator.name || "Coordinator",
+      recipientRole: "STUDENT_COORDINATOR",
+      title: "New Feedback Received",
+      message: `${registration.teamLeader.name} submitted feedback for ${event.title}`,
+      type: "FEEDBACK",
+      refId: event._id
+    });
+  }
+
   generateCertificatesForRegistration(registration, event).catch((err) =>
-    console.error("❌ Certificate generation error:", err.message)
+    console.error("Certificate generation error:", err.message)
   );
 
   return feedback;
@@ -79,27 +100,28 @@ export const submitFeedback = async (eventId, userId, payload) => {
 
 /* ================================================
    GET FEEDBACK FOR EVENT
-   Organizer views all feedback
 ================================================ */
 
-export const getEventFeedback = async (eventId, requesterId) => {
+export const getEventFeedback = async (eventId, requester) => {
   const event = await Event.findById(eventId);
   if (!event) throw new Error("Event not found");
 
-  // Only organizer or admin
-  const isAdmin = requesterId.role === "MAIN_ADMIN";
-  const isOrganizer =
-    event.createdBy.toString() === requesterId._id.toString();
+  const isAdmin = requester.role === "MAIN_ADMIN";
+  const isOrganizer = event.createdBy.toString() === requester._id.toString();
+  const isAssignedCoordinator =
+    requester.role === "STUDENT_COORDINATOR" &&
+    event.studentCoordinators.some(
+      (coordinator) =>
+        coordinator.coordinatorId?.toString() === requester._id.toString()
+    );
 
-  if (!isAdmin && !isOrganizer)
+  if (!isAdmin && !isOrganizer && !isAssignedCoordinator) {
     throw new Error("Not authorized to view feedback for this event");
+  }
 
-  const feedbacks = await Feedback.find({ event: eventId })
-  .sort({ createdAt: -1 });
-
-  // Calculate average rating
+  const feedbacks = await Feedback.find({ event: eventId }).sort({ createdAt: -1 });
   const avgRating =
-    feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length || 0;
+    feedbacks.reduce((sum, row) => sum + row.rating, 0) / feedbacks.length || 0;
 
   return {
     totalFeedbacks: feedbacks.length,

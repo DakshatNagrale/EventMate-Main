@@ -1,6 +1,16 @@
 import SummaryApi from "../api/SummaryApi";
 import api from "./api";
 
+const REG_CACHE_TTL_MS = 60000;
+let cachedMyRegistrations = null;
+let cachedMyRegistrationsExpiresAt = 0;
+let pendingMyRegistrationsPromise = null;
+
+export const invalidateMyRegistrationsCache = () => {
+  cachedMyRegistrations = null;
+  cachedMyRegistrationsExpiresAt = 0;
+};
+
 const toList = (payload) => {
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload?.registrations)) return payload.registrations;
@@ -44,25 +54,45 @@ const normalizeRegistration = (item) => {
 };
 
 export const fetchMyRegistrations = async () => {
+  if (cachedMyRegistrations && cachedMyRegistrationsExpiresAt > Date.now()) {
+    return cachedMyRegistrations;
+  }
+
+  if (pendingMyRegistrationsPromise) {
+    return pendingMyRegistrationsPromise;
+  }
+
+  pendingMyRegistrationsPromise = (async () => {
   try {
-    const response = await api({ ...SummaryApi.get_my_registered_events });
+    const response = await api({ ...SummaryApi.get_my_registered_events, cacheTTL: REG_CACHE_TTL_MS });
     const rows = toList(response.data).map(normalizeRegistration);
-    return {
+    const result = {
       rows,
       supported: true,
       warning: null,
     };
+    cachedMyRegistrations = result;
+    cachedMyRegistrationsExpiresAt = Date.now() + REG_CACHE_TTL_MS;
+    return result;
   } catch (error) {
     const status = Number(error?.response?.status);
     if (status === 404) {
-      return {
+      const result = {
         rows: [],
         supported: false,
         warning: "My registration history endpoint is not available in this backend build.",
       };
+      cachedMyRegistrations = result;
+      cachedMyRegistrationsExpiresAt = Date.now() + REG_CACHE_TTL_MS;
+      return result;
     }
     throw error;
+  } finally {
+    pendingMyRegistrationsPromise = null;
   }
+  })();
+
+  return pendingMyRegistrationsPromise;
 };
 
 export const fetchRegisteredEventIds = async () => {

@@ -1,6 +1,10 @@
 const trimTrailingSlash = (value) => String(value || "").trim().replace(/\/+$/, "");
 
 const getFallbackBaseUrl = () => {
+  if (import.meta.env.DEV) {
+    return "";
+  }
+
   const backendPort = String(import.meta.env.VITE_BACKEND_PORT || "5000").trim() || "5000";
 
   if (typeof window !== "undefined") {

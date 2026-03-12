@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import api from "../lib/api";
+import SummaryApi from "../api/SummaryApi";
+import { getStoredUser } from "../lib/auth";
 
-const CONTACT_API_NOTICE =
-  "Contact message API is not available in this backend build. Please use support@eventmate.com.";
 export default function ContactUs() {
+  const [user, setUser] = useState(() => getStoredUser());
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -11,6 +13,16 @@ export default function ContactUs() {
 
   const [status, setStatus] = useState({ type: "", message: "" });
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const profile = getStoredUser();
+    setUser(profile);
+    setFormData((prev) => ({
+      ...prev,
+      name: prev.name || profile?.fullName || "",
+      email: prev.email || profile?.email || "",
+    }));
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -33,8 +45,36 @@ export default function ContactUs() {
     }
 
     setIsLoading(true);
-    setStatus({ type: "error", message: CONTACT_API_NOTICE });
-    setIsLoading(false);
+    setStatus({ type: "", message: "" });
+
+    try {
+      const response = await api({
+        ...SummaryApi.submit_contact,
+        data: {
+          fullName: formData.name.trim(),
+          email: formData.email.trim(),
+          message: formData.message.trim(),
+        },
+      });
+
+      setStatus({
+        type: "success",
+        message: response.data?.message || "Message sent successfully.",
+      });
+
+      setFormData({
+        name: user?.fullName || "",
+        email: user?.email || "",
+        message: "",
+      });
+    } catch (error) {
+      setStatus({
+        type: "error",
+        message: error.response?.data?.message || "Unable to send message right now.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
